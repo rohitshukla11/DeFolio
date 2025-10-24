@@ -5,20 +5,17 @@
  * Nexus SDK provides unified view of balances across ALL chains without separate RPC providers
  */
 
-import { NexusSDK } from '@avail-project/nexus-core';
-import type { Balance, Token, ChainId } from '@/types';
+// import { NexusSDK } from '@avail-project/nexus-core'; // Avoid top-level import to prevent SSR errors
+import type { Balance } from '@/types';
 import { CHAIN_IDS, getChainById, getChainByChainId } from '@/config/chains';
 import { getAllTokensForChain } from '@/config/tokens';
 
 export class NexusUnifiedBalanceClient {
-  private sdk: NexusSDK;
+  private sdk: any;
   private initialized: boolean = false;
 
   constructor() {
-    this.sdk = new NexusSDK({
-      network: process.env.NODE_ENV === 'production' ? 'mainnet' : 'mainnet',
-      debug: process.env.NODE_ENV === 'development',
-    });
+    this.sdk = null; // will be created during initialize via dynamic import
   }
 
   /**
@@ -32,6 +29,15 @@ export class NexusUnifiedBalanceClient {
     }
 
     try {
+      if (typeof window === 'undefined') {
+        throw new Error('Nexus SDK can only be initialized in the browser');
+      }
+      const mod: any = await import('@avail-project/nexus-core');
+      const NexusSDK = mod.NexusSDK || mod.default || mod;
+      this.sdk = new NexusSDK({
+        network: process.env.NODE_ENV === 'production' ? 'mainnet' : 'mainnet',
+        debug: process.env.NODE_ENV === 'development',
+      });
       await this.sdk.initialize(provider);
       this.initialized = true;
       console.log('✅ Nexus SDK initialized - unified balance available');
@@ -45,7 +51,7 @@ export class NexusUnifiedBalanceClient {
    * Check if SDK is ready to fetch balances
    */
   isReady(): boolean {
-    return this.sdk.isInitialized();
+    return !!this.sdk && this.sdk.isInitialized();
   }
 
   /**
@@ -63,27 +69,11 @@ export class NexusUnifiedBalanceClient {
 
     try {
       console.log('🔄 Fetching unified balance via Nexus SDK...');
-      
-      // The Nexus SDK should have a method to get unified balances
-      // Based on the documentation, this should return balances across all chains
-      
-      // Note: The exact API method name may vary. Common patterns:
-      // - sdk.getUnifiedBalance(address)
-      // - sdk.balance.getUnified(address)
-      // - sdk.wallet.getBalances(address)
-      
-      // For now, we'll need to check the actual SDK API
-      // Let's try the most likely method signature:
-      
       const unifiedBalances = await this.getBalancesFromSDK(walletAddress);
-      
       console.log(`✅ Fetched ${unifiedBalances.length} balances via Nexus unified balance`);
       return unifiedBalances;
-      
     } catch (error) {
       console.error('❌ Failed to fetch unified balance:', error);
-      
-      // Fallback: return empty array (app handles gracefully)
       if (process.env.NODE_ENV === 'development') {
         console.warn('⚠️  Nexus unified balance unavailable. Ensure wallet is connected.');
       }
@@ -102,32 +92,16 @@ export class NexusUnifiedBalanceClient {
     // 1. Individual chain RPC calls
     // 2. Token balance queries
     // 3. Cross-chain aggregation
-    
     // All of this is handled by Nexus internally!
-    
-    // Since we need to verify the exact SDK method, let's try common patterns:
+
     try {
-      // Pattern 1: Direct balance method
+      // TODO: Replace with actual SDK balance method when documented
+      // Example candidates:
       // const sdkBalances = await this.sdk.getBalance?.(walletAddress);
-      
-      // Pattern 2: Wallet module
       // const sdkBalances = await this.sdk.wallet?.getBalances?.(walletAddress);
-      
-      // Pattern 3: Balance module
       // const sdkBalances = await this.sdk.balance?.getUnified?.(walletAddress);
       
-      // For now, we'll need to inspect the actual SDK
-      // The SDK instance should expose balance methods
-      
-      // Temporary: Log the SDK structure to see available methods
-      if (process.env.NODE_ENV === 'development') {
-        console.log('SDK instance methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(this.sdk)));
-      }
-      
-      // Return empty for now until we verify the exact method
-      // The Nexus SDK WILL provide this - we just need the correct method name
       return balances;
-      
     } catch (error) {
       console.error('Error calling Nexus SDK balance method:', error);
       return [];
@@ -140,8 +114,6 @@ export class NexusUnifiedBalanceClient {
    */
   async getTokenBalance(walletAddress: string, tokenSymbol: string): Promise<number> {
     const balances = await this.fetchUnifiedBalance(walletAddress);
-    
-    // Sum up balances for this token across all chains
     return balances
       .filter(b => b.token.symbol === tokenSymbol)
       .reduce((sum, b) => sum + b.usdValue, 0);
@@ -159,7 +131,7 @@ export class NexusUnifiedBalanceClient {
   /**
    * Get Nexus SDK instance for advanced operations
    */
-  getSDK(): NexusSDK {
+  getSDK(): any {
     return this.sdk;
   }
 
@@ -168,7 +140,6 @@ export class NexusUnifiedBalanceClient {
    */
   async deinitialize(): Promise<void> {
     if (!this.initialized) return;
-    
     try {
       await this.sdk.deinit();
       this.initialized = false;
@@ -195,18 +166,13 @@ export async function fetchUnifiedBalances(
   walletAddress: string,
   provider?: any
 ): Promise<Balance[]> {
-  // If provider is passed, ensure SDK is initialized
   if (provider && !nexusUnifiedClient.isReady()) {
     await nexusUnifiedClient.initialize(provider);
   }
-
-  // Check if initialized
   if (!nexusUnifiedClient.isReady()) {
     console.warn('⚠️  Nexus SDK not initialized. Connect wallet first for unified balance.');
     return [];
   }
-
-  // Fetch unified balances across ALL chains
   return await nexusUnifiedClient.fetchUnifiedBalance(walletAddress);
 }
 

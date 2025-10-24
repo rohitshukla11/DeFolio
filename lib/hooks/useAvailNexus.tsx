@@ -8,6 +8,9 @@
 import { useState, useRef, useCallback } from 'react';
 import type { OnAllowanceHookData, OnIntentHookData } from '@avail-project/nexus-core';
 import { availNexusClient } from '@/lib/integrations/avail-nexus';
+import { nexusUnifiedClient, fetchUnifiedBalances } from '@/lib/integrations/nexus-unified';
+import { availClient } from '@/lib/integrations/avail';
+import type { Balance } from '@/types';
 
 export function useAvailNexus() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -24,6 +27,12 @@ export function useAvailNexus() {
     setIsInitializing(true);
     try {
       await availNexusClient.initialize(provider);
+      // Initialize unified balance client as well
+      try {
+        await nexusUnifiedClient.initialize(provider);
+      } catch (e) {
+        console.warn('Nexus unified balance initialization failed (will retry on demand)');
+      }
       
       // Set up event hooks
       availNexusClient.setOnAllowanceHook((data: OnAllowanceHookData) => {
@@ -51,6 +60,7 @@ export function useAvailNexus() {
    */
   const deinitialize = useCallback(async () => {
     await availNexusClient.deinitialize();
+    try { await nexusUnifiedClient.deinitialize(); } catch {}
     setIsInitialized(false);
     intentRef.current = null;
     allowanceRef.current = null;
@@ -72,12 +82,62 @@ export function useAvailNexus() {
     return await availNexusClient.executeCrossChainTransaction(params);
   }, [isInitialized]);
 
+  /**
+   * Get unified balances from Avail Nexus SDK
+   */
+  const getUnifiedBalances = useCallback(async (walletAddress: string): Promise<Balance[]> => {
+    if (!nexusUnifiedClient.isReady()) {
+      // Gracefully return empty list when SDK isn't initialized (no wallet connected)
+      return [];
+    }
+    return await fetchUnifiedBalances(walletAddress);
+  }, []);
+
+  /**
+   * Execute generic intent via Nexus (simple wrapper)
+   */
+  const executeIntent = useCallback(async (intent: any) => {
+    if (!isInitialized) {
+      throw new Error('Nexus not initialized');
+    }
+    // Map a simple SWAP intent to cross-chain transaction params when possible
+    if (intent?.type === 'SWAP' && intent?.from && intent?.to) {
+      return await availNexusClient.executeCrossChainTransaction({
+        fromChainId: intent.from.chainId || intent.from.chain,
+        toChainId: intent.to.chainId || intent.to.chain,
+        token: intent.from.token,
+        amount: intent.from.amount,
+        recipient: intent.recipient || intent.to.recipient || intent.from.recipient || '',
+      });
+    }
+    // Otherwise pass-through for advanced SDK usage (app can use sdk directly via .sdk)
+    return { success: false, txHash: '0x' + '0'.repeat(64) };
+  }, [isInitialized]);
+
+  /**
+   * Generate proof of ownership (uses Avail client helper for now)
+   */
+  const generateProof = useCallback(async (params: { address: string; chains?: string[]; timestamp?: number }) => {
+    const proof = await availClient.generateProofOfOwnership(params.address);
+    if (!proof) return null;
+    if (params.chains && params.chains.length > 0) {
+      return {
+        ...proof,
+        balances: proof.balances.filter(b => params.chains!.includes(b.chainId as any)),
+      };
+    }
+    return proof;
+  }, []);
+
   return {
     isInitialized,
     isInitializing,
     initialize,
     deinitialize,
     executeCrossChain,
+    executeIntent,
+    getUnifiedBalances,
+    generateProof,
     intentRef,
     allowanceRef,
     sdk: availNexusClient.getSDK(),

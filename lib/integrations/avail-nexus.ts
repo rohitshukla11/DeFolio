@@ -4,17 +4,17 @@
  * This complements our balance fetching implementation
  */
 
-import { NexusSDK, type OnAllowanceHookData, type OnIntentHookData } from '@avail-project/nexus-core';
+// IMPORTANT: Avoid top-level import of Nexus SDK to prevent SSR import errors (it-ws exports)
+// We'll dynamically import the SDK inside initialize() on the client only
+import type { OnAllowanceHookData, OnIntentHookData } from '@avail-project/nexus-core';
 
 export class AvailNexusClient {
-  private sdk: NexusSDK;
+  private sdk: any;
   private initialized: boolean = false;
 
   constructor() {
-    this.sdk = new NexusSDK({
-      network: process.env.NODE_ENV === 'production' ? 'mainnet' : 'testnet',
-      debug: process.env.NODE_ENV === 'development',
-    });
+    // SDK will be created during initialize via dynamic import
+    this.sdk = null;
   }
 
   /**
@@ -28,6 +28,15 @@ export class AvailNexusClient {
     }
 
     try {
+      if (typeof window === 'undefined') {
+        throw new Error('Nexus SDK can only be initialized in the browser');
+      }
+      const mod = await import('@avail-project/nexus-core');
+      const NexusSDK = (mod as any).NexusSDK || (mod as any).default || mod;
+      this.sdk = new NexusSDK({
+        network: process.env.NODE_ENV === 'production' ? 'mainnet' : 'testnet',
+        debug: process.env.NODE_ENV === 'development',
+      });
       await this.sdk.initialize(provider);
       this.initialized = true;
       console.log('✅ Avail Nexus SDK initialized successfully');
@@ -56,7 +65,7 @@ export class AvailNexusClient {
    * Check if SDK is initialized
    */
   isInitialized(): boolean {
-    return this.sdk.isInitialized();
+    return !!this.sdk && this.sdk.isInitialized();
   }
 
   /**
@@ -138,7 +147,7 @@ export class AvailNexusClient {
    * Get the Nexus SDK instance
    * Useful for advanced operations
    */
-  getSDK(): NexusSDK {
+  getSDK(): any {
     return this.sdk;
   }
 }

@@ -4,11 +4,11 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { WalletDashboardData, ApiResponse, ChainId } from '@/types';
+import { WalletDashboardData, ApiResponse, ChainId, TaxSummary } from '@/types';
 import { envioHyperSyncClient } from '@/lib/integrations/envio-hypersync-correct';
 import { availClient } from '@/lib/integrations/avail';
 import { pythClient } from '@/lib/integrations/pyth';
-import { calculateTokenPnL, calculatePortfolioPnL, calculatePnLByChain } from '@/lib/utils/pnl';
+import { calculateTokenPnL, calculatePortfolioPnL, calculatePnLByChain, calculateTaxLots } from '@/lib/utils/pnl';
 import {
   handleError,
   createSuccessResponse,
@@ -42,23 +42,24 @@ export default async function handler(
     const includeProof = req.query.includeProof === 'true';
     const limit = parseInt(req.query.limit as string) || 50;
 
-    // Fetch data from all integrations in parallel with timeout
-    const [balances, transactions] = await Promise.all([
-      withTimeout(
-        availClient.fetchMultiChainBalances(walletAddress),
-        30000,
-        'Timeout fetching balances'
-      ),
-      withTimeout(
-        envioHyperSyncClient.fetchTransactionHistory(walletAddress, chainIds, { 
-          limit,
-          fromBlock: 0,
-          // toBlock omitted - defaults to latest block
-        }),
-        30000,
-        'Timeout fetching transactions'
-      ),
-    ]);
+    // Fetch transactions from HyperSync
+    const transactions = await withTimeout(
+      envioHyperSyncClient.fetchTransactionHistory(walletAddress, chainIds, { 
+        limit,
+        fromBlock: 0,
+        // toBlock omitted - defaults to latest block
+      }),
+      30000,
+      'Timeout fetching transactions'
+    );
+
+    // Calculate balances from transaction history (no RPC calls needed)
+    // This ensures tokens have pythPriceId from config
+    const balances = await availClient.calculateBalancesFromTransactions(
+      walletAddress,
+      transactions,
+      chainIds
+    );
 
     // Get unique tokens from balances (guard against undefined)
     const tokens = balances
@@ -116,6 +117,47 @@ export default async function handler(
     const portfolioMetrics = calculatePortfolioPnL(pnlByToken);
     const pnlByChain = calculatePnLByChain(pnlByToken);
 
+    // Compute tax summary
+    const taxLots = calculateTaxLots(transactions);
+    const ONE_YEAR = 365 * 24 * 60 * 60 * 1000;
+    const byChain: Record<ChainId, { shortTermGains: number; longTermGains: number; totalCapitalGains: number }> = {
+      ethereum: { shortTermGains: 0, longTermGains: 0, totalCapitalGains: 0 },
+      polygon: { shortTermGains: 0, longTermGains: 0, totalCapitalGains: 0 },
+      arbitrum: { shortTermGains: 0, longTermGains: 0, totalCapitalGains: 0 },
+      base: { shortTermGains: 0, longTermGains: 0, totalCapitalGains: 0 },
+    };
+    const txsByChain: Record<ChainId, typeof transactions> = { ethereum: [], polygon: [], arbitrum: [], base: [] } as any;
+    transactions.forEach((tx) => { (txsByChain[tx.chainId] as any[]).push(tx); });
+    (Object.keys(txsByChain) as ChainId[]).forEach((c) => {
+      const txs = txsByChain[c].sort((a, b) => a.timestamp - b.timestamp);
+      const lots: Array<{ amount: number; priceUsd: number; timestamp: number }> = [];
+      let st = 0, lt = 0;
+      txs.forEach((tx) => {
+        if (tx.type === 'receive') {
+          lots.push({ amount: tx.valueFormatted, priceUsd: tx.usdValueAtTime || 0, timestamp: tx.timestamp });
+        } else if (tx.type === 'send') {
+          let remaining = tx.valueFormatted;
+          while (remaining > 0 && lots.length) {
+            const lot = lots[0];
+            const sell = Math.min(lot.amount, remaining);
+            const gain = sell * ((tx.usdValueAtTime || 0) - lot.priceUsd);
+            const holding = tx.timestamp - lot.timestamp;
+            if (holding >= ONE_YEAR) lt += gain; else st += gain;
+            lot.amount -= sell; remaining -= sell; if (lot.amount === 0) lots.shift();
+          }
+        }
+      });
+      byChain[c] = { shortTermGains: st, longTermGains: lt, totalCapitalGains: st + lt };
+    });
+
+    const taxSummary: TaxSummary = {
+      shortTermGains: taxLots.shortTermGains,
+      longTermGains: taxLots.longTermGains,
+      totalCapitalGains: taxLots.totalCapitalGains,
+      realizedEvents: transactions.filter((t) => t.type === 'send').length,
+      byChain: byChain as any,
+    };
+
     // Optionally generate proof of ownership
     let availProof = undefined;
     if (includeProof) {
@@ -146,6 +188,7 @@ export default async function handler(
       recentTransactions: transactions,
       priceUpdates: Object.fromEntries(priceUpdates),
       availProof: availProof || undefined,
+      taxSummary,
     };
 
     return res.status(200).json(createSuccessResponse(dashboardData));

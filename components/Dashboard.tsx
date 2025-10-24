@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { WalletDashboardData } from '@/types';
 import PortfolioSummary from './PortfolioSummary';
+import TaxSummaryCard from './TaxSummaryCard';
 import BalanceList from './BalanceList';
 import TransactionList from './TransactionList';
 import PnLChart from './PnLChart';
@@ -72,6 +73,9 @@ export default function Dashboard({ walletAddress, onChangeWallet }: DashboardPr
 
       {/* Portfolio Summary */}
       <PortfolioSummary portfolio={data.portfolio} />
+
+      {/* Tax Summary */}
+      {data.taxSummary && <TaxSummaryCard taxSummary={data.taxSummary} />}
 
       {/* Export Buttons */}
       <ExportButtons walletAddress={walletAddress} />

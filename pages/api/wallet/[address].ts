@@ -5,7 +5,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { WalletDashboardData, ApiResponse, ChainId } from '@/types';
-import { envioClient } from '@/lib/integrations/envio';
+import { envioHyperSyncClient } from '@/lib/integrations/envio-hypersync-correct';
 import { availClient } from '@/lib/integrations/avail';
 import { pythClient } from '@/lib/integrations/pyth';
 import { calculateTokenPnL, calculatePortfolioPnL, calculatePnLByChain } from '@/lib/utils/pnl';
@@ -50,14 +50,20 @@ export default async function handler(
         'Timeout fetching balances'
       ),
       withTimeout(
-        envioClient.fetchTransactionHistory(walletAddress, chainIds, { limit }),
+        envioHyperSyncClient.fetchTransactionHistory(walletAddress, chainIds, { 
+          limit,
+          fromBlock: 0,
+          // toBlock omitted - defaults to latest block
+        }),
         30000,
         'Timeout fetching transactions'
       ),
     ]);
 
-    // Get unique tokens from balances
-    const tokens = balances.map((b) => b.token);
+    // Get unique tokens from balances (guard against undefined)
+    const tokens = balances
+      .map((b) => b.token)
+      .filter((t) => t && t.address);
 
     // Fetch real-time prices
     const priceUpdates = await withTimeout(
@@ -68,6 +74,7 @@ export default async function handler(
 
     // Update balances with USD values
     balances.forEach((balance) => {
+      if (!balance.token || !balance.token.address) return;
       const priceKey = `${balance.chainId}-${balance.token.address}`;
       const priceUpdate = priceUpdates.get(priceKey);
       if (priceUpdate) {
@@ -77,6 +84,7 @@ export default async function handler(
 
     // Update transactions with USD values (use current price as fallback)
     transactions.forEach((tx) => {
+      if (!tx.token || !tx.token.address) return;
       const priceKey = `${tx.chainId}-${tx.token.address}`;
       const priceUpdate = priceUpdates.get(priceKey);
       if (priceUpdate && !tx.usdValueAtTime) {
@@ -85,18 +93,21 @@ export default async function handler(
     });
 
     // Calculate PnL for each token
-    const pnlByToken = balances.map((balance) => {
-      const tokenTransactions = transactions.filter(
-        (tx) =>
-          tx.token.address.toLowerCase() === balance.token.address.toLowerCase() &&
-          tx.chainId === balance.chainId
-      );
+    const pnlByToken = balances
+      .filter((balance) => balance.token && balance.token.address)
+      .map((balance) => {
+        const tokenAddressLc = balance.token.address.toLowerCase();
+        const tokenTransactions = transactions.filter(
+          (tx) => tx.token && tx.token.address &&
+            tx.token.address.toLowerCase() === tokenAddressLc &&
+            tx.chainId === balance.chainId
+        );
 
-      const priceKey = `${balance.chainId}-${balance.token.address}`;
-      const currentPrice = priceUpdates.get(priceKey)?.price || 0;
+        const priceKey = `${balance.chainId}-${balance.token.address}`;
+        const currentPrice = priceUpdates.get(priceKey)?.price || 0;
 
-      return calculateTokenPnL(balance.token, tokenTransactions, balance, currentPrice);
-    });
+        return calculateTokenPnL(balance.token, tokenTransactions, balance, currentPrice);
+      });
 
     // Calculate portfolio-wide metrics
     const portfolioMetrics = calculatePortfolioPnL(pnlByToken);

@@ -5,7 +5,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { Transaction, ApiResponse, ChainId } from '@/types';
-import { envioClient } from '@/lib/integrations/envio';
+import { envioHyperSyncClient } from '@/lib/integrations/envio-hypersync-correct';
 import { pythClient } from '@/lib/integrations/pyth';
 import {
   handleError,
@@ -40,16 +40,25 @@ export default async function handler(
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    // Fetch transactions
+    // Fetch transactions using Envio HyperSync (ETHOnline 2025 - $5,000 bounty!)
     const transactions = await withTimeout(
-      envioClient.fetchTransactionHistory(walletAddress, chainIds, { limit, offset }),
+      envioHyperSyncClient.fetchTransactionHistory(walletAddress, chainIds, { 
+        limit,
+        fromBlock: 0,
+        // toBlock omitted - defaults to latest block
+      }),
       30000,
       'Timeout fetching transactions'
     );
 
     // Fetch current prices for tokens (to backfill missing USD values)
+    // Guard against transactions without token info
     const tokens = Array.from(
-      new Map(transactions.map((tx) => [`${tx.chainId}-${tx.token.address}`, tx.token])).values()
+      new Map(
+        transactions
+          .filter((tx) => tx.token && tx.token.address)
+          .map((tx) => [`${tx.chainId}-${tx.token!.address}`, tx.token!])
+      ).values()
     );
 
     const priceUpdates = await withTimeout(
@@ -60,7 +69,7 @@ export default async function handler(
 
     // Update transactions with USD values if missing
     transactions.forEach((tx) => {
-      if (!tx.usdValueAtTime) {
+      if (!tx.usdValueAtTime && tx.token && tx.token.address) {
         const priceKey = `${tx.chainId}-${tx.token.address}`;
         const priceUpdate = priceUpdates.get(priceKey);
         if (priceUpdate) {

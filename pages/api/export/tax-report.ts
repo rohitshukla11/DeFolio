@@ -4,7 +4,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { envioClient } from '@/lib/integrations/envio';
+import { envioHyperSyncClient } from '@/lib/integrations/envio-hypersync-correct';
 import { ChainId } from '@/types';
 import { generateTaxReportCSV } from '@/lib/utils/csv-export';
 import { handleError, validateAddress } from '@/lib/utils/error-handler';
@@ -25,9 +25,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const taxYear = year || new Date().getFullYear();
     const chainIds: ChainId[] = chains || CHAIN_IDS;
 
-    // Fetch all transactions for the year
-    const transactions = await envioClient.fetchTransactionHistory(address, chainIds, {
-      limit: 10000, // Fetch all transactions
+    // Fetch all transactions for the year using Envio HyperSync
+    const transactions = await envioHyperSyncClient.fetchTransactionHistory(address, chainIds, {
+      limit: 10000,
+      fromBlock: 0,
     });
 
     // Generate CSV

@@ -66,17 +66,20 @@ export default async function handler(
       .filter((t) => t && t.address);
 
     // Fetch real-time prices
+    console.log(`🔍 Fetching prices for ${tokens.length} tokens`);
     const priceUpdates = await withTimeout(
       pythClient.fetchPrices(tokens),
       15000,
       'Timeout fetching prices'
     );
+    console.log(`✅ Fetched ${priceUpdates.size} price updates from Pyth`);
 
     // Update balances with USD values
     balances.forEach((balance) => {
       if (!balance.token || !balance.token.address) return;
       const priceKey = `${balance.chainId}-${balance.token.address}`;
       const priceUpdate = priceUpdates.get(priceKey);
+      console.log(`💰 ${balance.token.symbol}: ${balance.balanceFormatted} * ${priceUpdate?.price || 'NO_PRICE'} = ${balance.balanceFormatted * (priceUpdate?.price || 0)}`);
       if (priceUpdate) {
         balance.usdValue = balance.balanceFormatted * priceUpdate.price;
       }

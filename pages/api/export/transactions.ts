@@ -4,7 +4,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { envioClient } from '@/lib/integrations/envio';
+import { envioHyperSyncClient } from '@/lib/integrations/envio-hypersync-correct';
 import { ChainId } from '@/types';
 import { generateTransactionsCSV } from '@/lib/utils/csv-export';
 import { handleError, validateAddress } from '@/lib/utils/error-handler';
@@ -25,9 +25,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const chainIds: ChainId[] = chains || CHAIN_IDS;
     const txLimit = limit || 1000;
 
-    // Fetch transactions
-    const transactions = await envioClient.fetchTransactionHistory(address, chainIds, {
+    // Fetch transactions using Envio HyperSync
+    const transactions = await envioHyperSyncClient.fetchTransactionHistory(address, chainIds, {
       limit: txLimit,
+      fromBlock: 0,
     });
 
     // Generate CSV

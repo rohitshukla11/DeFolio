@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { NEXUS_EVENTS } from '@avail-project/nexus-core';
 import { useAvailNexus } from '@/lib/hooks/useAvailNexus';
 import type { Balance } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,10 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AvailPage() {
-  const { isInitialized, isInitializing, initialize, getUnifiedBalances, simulateBridgeAndExecute, bridgeAndExecute } = useAvailNexus();
-  // Low-level SDK reference (used for progress events)
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const sdkRef: any = (useAvailNexus() as any).sdk;
+  const { isInitialized, isInitializing, initialize, getUnifiedBalances, simulateBridgeAndExecute, bridgeAndExecute, sdk } = useAvailNexus();
 
   const [address, setAddress] = useState<string>("");
   const [balances, setBalances] = useState<Balance[] | null>(null);
@@ -238,14 +234,16 @@ export default function AvailPage() {
       // Attach progress listeners to detect success even if the result object is pessimistic
       const listeners: Array<() => void> = [];
       try {
-        if (sdkRef?.nexusEvents?.on) {
-          const u1 = sdkRef.nexusEvents.on(NEXUS_EVENTS.BRIDGE_EXECUTE_COMPLETED_STEPS, (step: any) => {
+        if (sdk?.nexusEvents?.on && typeof window !== 'undefined') {
+          const mod: any = await import('@avail-project/nexus-core');
+          const NEXUS_EVENTS = mod.NEXUS_EVENTS || (mod.default && mod.default.NEXUS_EVENTS);
+          const u1 = sdk.nexusEvents.on(NEXUS_EVENTS.BRIDGE_EXECUTE_COMPLETED_STEPS, (step: any) => {
             if (step?.typeID === 'IS') {
               setExecResult({ success: true, explorerUrl: step?.data?.explorerURL, transactionHash: step?.data?.transactionHash });
               setExecLoading(false);
             }
           });
-          const u2 = sdkRef.nexusEvents.on(NEXUS_EVENTS.STEP_COMPLETE, (step: any) => {
+          const u2 = sdk.nexusEvents.on(NEXUS_EVENTS.STEP_COMPLETE, (step: any) => {
             if (step?.typeID === 'IS') {
               setExecResult({ success: true, explorerUrl: step?.data?.explorerURL, transactionHash: step?.data?.transactionHash });
               setExecLoading(false);

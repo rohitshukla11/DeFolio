@@ -86,39 +86,38 @@ export default function ExportButtons({ walletAddress }: ExportButtonsProps) {
   };
 
   return (
-    <div className="card bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-indigo-900 dark:text-indigo-100 mb-1">
-            Export Data
-          </h3>
-          <p className="text-sm text-indigo-700 dark:text-indigo-300">
-            Download your portfolio data for tax reporting or record keeping
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={handleExportTaxReport}
-            disabled={isExporting}
-            className="btn btn-primary"
-          >
-            {isExporting && exportType === 'tax' && (
-              <span className="spinner mr-2" />
-            )}
-            📄 Tax Report
-          </button>
-          <button
-            onClick={handleExportTransactions}
-            disabled={isExporting}
-            className="btn btn-secondary"
-          >
-            {isExporting && exportType === 'transactions' && (
-              <span className="spinner mr-2" />
-            )}
-            📊 All Transactions
-          </button>
-        </div>
-      </div>
+    <div className="flex gap-2">
+      <button
+        onClick={handleExportTaxReport}
+        disabled={isExporting}
+        className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all font-medium text-sm flex items-center gap-1.5"
+        title="Export Tax Report"
+      >
+        {isExporting && exportType === 'tax' ? (
+          <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-gray-700 dark:border-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
+        ) : (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )}
+        <span className="hidden sm:inline">Tax Report</span>
+      </button>
+      
+      <button
+        onClick={handleExportTransactions}
+        disabled={isExporting}
+        className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all font-medium text-sm flex items-center gap-1.5"
+        title="Export All Transactions"
+      >
+        {isExporting && exportType === 'transactions' ? (
+          <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-gray-700 dark:border-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
+        ) : (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        )}
+        <span className="hidden sm:inline">All Transactions</span>
+      </button>
     </div>
   );
 }

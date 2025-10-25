@@ -6,7 +6,9 @@
 
 // IMPORTANT: Avoid top-level import of Nexus SDK to prevent SSR import errors (it-ws exports)
 // We'll dynamically import the SDK inside initialize() on the client only
-import type { OnAllowanceHookData, OnIntentHookData } from '@avail-project/nexus-core';
+// Define minimal types locally to avoid SSR import of the SDK module
+export type OnIntentHookData = { intent?: any; allow?: () => void; deny?: () => void; refresh?: () => void };
+export type OnAllowanceHookData = { sources?: any[]; allow?: (allowances: Array<'min' | 'max' | string | bigint>) => void; deny?: () => void };
 import type { Balance } from '@/types';
 import { getChainByChainId } from '@/config/chains';
 

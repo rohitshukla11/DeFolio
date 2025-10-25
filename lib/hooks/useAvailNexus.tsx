@@ -6,7 +6,18 @@
 "use client";
 
 import { useState, useRef, useCallback } from 'react';
-import type { OnAllowanceHookData, OnIntentHookData } from '@avail-project/nexus-core';
+// Avoid importing Nexus types at module scope to prevent SSR bundling issues
+type OnIntentHookData = {
+  intent?: any;
+  allow?: () => void;
+  deny?: () => void;
+  refresh?: () => void;
+};
+type OnAllowanceHookData = {
+  sources?: any[];
+  allow?: (allowances: Array<'min' | 'max' | string | bigint>) => void;
+  deny?: () => void;
+};
 import { availNexusClient } from '@/lib/integrations/avail-nexus';
 import { nexusUnifiedClient, fetchUnifiedBalances } from '@/lib/integrations/nexus-unified';
 import { availClient } from '@/lib/integrations/avail';

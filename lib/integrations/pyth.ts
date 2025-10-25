@@ -17,6 +17,8 @@ export class PythClient {
   private hermes: HermesClient;
   private priceCache: Map<string, { price: PythPriceData; timestamp: number }>;
   private cacheTTL: number = 5000; // 5 seconds
+  // Cache for approximate historical prices (bucketed by time window)
+  private historicalApproxCache: Map<string, { price: number; timestamp: number }> = new Map();
 
   constructor() {
     this.baseUrl = PYTH_NETWORK_URL;
@@ -245,6 +247,71 @@ export class PythClient {
     // For now, return current price as fallback
     console.warn('Historical prices not implemented, using current price');
     return this.getTokenPrice(token);
+  }
+
+  /**
+   * Approximate per-transaction historical price using Hermes getPriceUpdates at a target publish time.
+   * Falls back to latest price if historical is unavailable. Results are cached in 5-minute buckets.
+   */
+  async approximateHistoricalPrice(
+    token: Token,
+    timestampMs: number,
+    bucketMs: number = 5 * 60 * 1000
+  ): Promise<number> {
+    if (!token.pythPriceId) return 0;
+    const normalizedId = token.pythPriceId.toLowerCase().replace(/^0x/, '');
+    const bucketStart = Math.floor(timestampMs / bucketMs) * bucketMs;
+    const cacheKey = `${normalizedId}:${bucketStart}`;
+
+    const cached = this.historicalApproxCache.get(cacheKey);
+    if (cached) {
+      return cached.price;
+    }
+
+    const publishTime = Math.floor(timestampMs / 1000);
+    let price: number | undefined;
+
+    try {
+      // HermesClient may not have TS types for getPriceUpdates; call via any to avoid type errors
+      const resp: any = await (this.hermes as any).getPriceUpdates([normalizedId], {
+        encoding: 'hex',
+        parsed: true,
+        ignoreInvalidPriceIds: true,
+        publishTime,
+      });
+
+      const parsed = Array.isArray(resp?.parsed) ? resp.parsed : [];
+      if (parsed.length > 0) {
+        const feed = parsed[0];
+        // Prefer spot price; fallback to ema_price if needed
+        const pxObj = feed.price || feed.ema_price;
+        if (pxObj && typeof pxObj.price !== 'undefined' && typeof pxObj.expo !== 'undefined') {
+          price = this.convertPythPrice(String(pxObj.price), pxObj.expo);
+        }
+      }
+    } catch (err) {
+      console.warn('Pyth approximateHistoricalPrice: getPriceUpdates failed, will fallback to latest. Error:', err);
+    }
+
+    if (typeof price !== 'number' || !isFinite(price) || price <= 0) {
+      try {
+        const latest = await this.getLatestPrices([normalizedId]);
+        const latestData = latest.get(normalizedId);
+        price = latestData?.price;
+      } catch (e) {
+        console.warn('Pyth approximateHistoricalPrice: latest price fallback failed:', e);
+      }
+    }
+
+    if (!price || !isFinite(price)) {
+      // Final fallback to hardcoded price map
+      const fallback = this.getFallbackPrices([token]);
+      const tokenKey = `${token.chainId}-${token.address}`;
+      price = fallback.get(tokenKey)?.price || 0;
+    }
+
+    this.historicalApproxCache.set(cacheKey, { price, timestamp: Date.now() });
+    return price;
   }
 
   /**

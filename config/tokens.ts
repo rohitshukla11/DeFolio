@@ -95,12 +95,13 @@ export const COMMON_TOKENS: Record<string, Partial<Record<ChainId, Token>>> = {
   },
   MATIC: {
     polygon: {
-      address: '0x0000000000000000000000000000000000001010', // Native MATIC
+      address: '0x0000000000000000000000000000000000001010', // Native MATIC (Polygon)
       symbol: 'MATIC',
       name: 'Polygon',
       decimals: 18,
       chainId: 'polygon',
-      pythPriceId: '0x5de33a9112c2b700b8d30b8a3402c103578ccfa2765696471cc672bd5cf6ac52',
+      // POL (Polygon rebranded) price feed
+      pythPriceId: '0xd2c2c1f2bba8e0964f9589e060c2ee97f5e19057267ac3284caef3bd50bd2cb5',
     },
   },
   WBTC: {

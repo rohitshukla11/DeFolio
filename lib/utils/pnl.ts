@@ -67,11 +67,18 @@ export function calculateTokenPnL(
       remainingLots.reduce((sum, lot) => sum + lot.amount, 0)
     : 0;
 
+  // Use effective balance for current value: if current balance is missing (0)
+  // but remaining FIFO lots exist, derive balance from lots to avoid zeroing out unrealized PnL
+  const remainingAmount = remainingLots.reduce((sum, lot) => sum + lot.amount, 0);
+  const effectiveBalanceAmount = currentBalance.balanceFormatted > 0
+    ? currentBalance.balanceFormatted
+    : remainingAmount;
+
   // Calculate current value
-  const currentValue = currentBalance.balanceFormatted * currentPrice;
+  const currentValue = effectiveBalanceAmount * currentPrice;
 
   // Calculate unrealized PnL (what you'd make if you sold now)
-  const unrealizedPnL = currentValue - (costBasis * currentBalance.balanceFormatted);
+  const unrealizedPnL = currentValue - (costBasis * effectiveBalanceAmount);
 
   console.log(`  Cost basis: ${costBasis}, Current price: ${currentPrice}`);
   console.log(`  Current value: ${currentValue}, Unrealized PnL: ${unrealizedPnL}`);

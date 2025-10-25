@@ -12,6 +12,7 @@ interface Props {
 export default function TaxOptimizedSellCard({ defaultToken = 'ETH', defaultAmountUsd = 10000 }: Props) {
   const [token, setToken] = useState<string>(defaultToken);
   const [amountUsd, setAmountUsd] = useState<string>(String(defaultAmountUsd));
+  const [amountToken, setAmountToken] = useState<string>('');
   const [sourceChain, setSourceChain] = useState<string>('arbitrum');
   const [destinationChain, setDestinationChain] = useState<string>('ethereum');
   const [holdingDaysByChain, setHoldingDaysByChain] = useState<Record<string, string>>({
@@ -37,10 +38,18 @@ export default function TaxOptimizedSellCard({ defaultToken = 'ETH', defaultAmou
         .filter(([id, days]) => days !== '' && CHAIN_IDS.includes(id as any))
         .map(([id, days]) => ({ chain: id, holdingDays: Number(days) }));
 
+      const payload: any = { token };
+      if (amountToken) {
+        payload.amountToken = Number(amountToken);
+      } else {
+        payload.amountUsd = amountNumber;
+      }
+      payload.holdings = holdings;
+
       const resp = await fetch('/api/optimize-sell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, amountUsd: amountNumber, holdings }),
+        body: JSON.stringify(payload),
       });
       if (!resp.ok) throw new Error('Failed to simulate');
       const json = await resp.json();
@@ -83,6 +92,15 @@ export default function TaxOptimizedSellCard({ defaultToken = 'ETH', defaultAmou
             className="input input-bordered w-full"
             value={amountUsd}
             onChange={(e) => setAmountUsd(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500">Amount ({token})</label>
+          <input
+            className="input input-bordered w-full"
+            value={amountToken}
+            onChange={(e) => setAmountToken(e.target.value)}
+            placeholder="e.g. 10"
           />
         </div>
         <div>

@@ -25,31 +25,33 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      {!walletAddress ? (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-          {/* Landing Navbar */}
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        {/* Navbar */}
+        {walletAddress ? (
+          <Navbar walletAddress={walletAddress} onChangeWallet={() => setWalletAddress('')} />
+        ) : (
           <Navbar />
+        )}
 
-          {/* Main Content */}
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="animate-fade-in">
+        {/* Main Content */}
+        <main className="container mx-auto px-4 py-6">
+          {!walletAddress ? (
+            <div className="max-w-2xl mx-auto mt-8 animate-fade-in">
               <WalletInput onSubmit={setWalletAddress} />
             </div>
-          </main>
+          ) : (
+            <div className="animate-fade-in space-y-6">
+              <Dashboard
+                walletAddress={walletAddress}
+                onChangeWallet={() => setWalletAddress('')}
+              />
+            </div>
+          )}
+        </main>
 
-          {/* Footer */}
-          <div className="mt-16">
-            <Footer />
-          </div>
-        </div>
-      ) : (
-        <div className="animate-fade-in">
-          <Dashboard
-            walletAddress={walletAddress}
-            onChangeWallet={() => setWalletAddress('')}
-          />
-        </div>
-      )}
+        {/* Footer */}
+        <Footer />
+      </div>
     </>
   );
 }

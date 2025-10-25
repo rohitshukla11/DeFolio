@@ -69,7 +69,7 @@ export default function TaxOptimizedSellCard({ defaultToken = 'ETH', defaultAmou
   const best = result?.bestOption;
 
   return (
-    <div className="card">
+    <div className="card border border-purple-200 dark:border-purple-900/40 bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-slate-950">
       <div className="flex items-center justify-between mb-3">
         <div>
           <div className="text-sm text-gray-600 dark:text-gray-400">Tax-Optimized Sell</div>
@@ -144,13 +144,13 @@ export default function TaxOptimizedSellCard({ defaultToken = 'ETH', defaultAmou
 
       {best && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-          <div className="p-4 rounded border border-gray-200 dark:border-slate-700">
+          <div className="p-4 rounded border border-purple-200 dark:border-purple-900/40 bg-white/70 dark:bg-slate-900/40 backdrop-blur">
             <div className="text-xs text-gray-500">Recommended Action</div>
             <div className="font-semibold mt-1">Bridge {token} from {(best.sourceChain || sourceChain).toUpperCase()} → {(best.destinationChain || destinationChain).toUpperCase()}</div>
             <div className="text-xs text-gray-500 mt-1">Then sell on {(best.destinationChain || destinationChain).toUpperCase()}</div>
           </div>
 
-          <div className="p-4 rounded border border-gray-200 dark:border-slate-700">
+          <div className="p-4 rounded border border-purple-200 dark:border-purple-900/40 bg-white/70 dark:bg-slate-900/40 backdrop-blur">
             <div className="text-xs text-gray-500">Tax Impact</div>
             <div className="mt-1">
               <div>Estimated Tax: <span className="font-semibold">${Number(best.taxLiability || 0).toFixed(2)}</span></div>
@@ -158,9 +158,9 @@ export default function TaxOptimizedSellCard({ defaultToken = 'ETH', defaultAmou
             </div>
           </div>
 
-          <div className="p-4 rounded border border-gray-200 dark:border-slate-700">
+          <div className="p-4 rounded border border-purple-200 dark:border-purple-900/40 bg-white/70 dark:bg-slate-900/40 backdrop-blur">
             <div className="text-xs text-gray-500">Estimated Savings</div>
-            <div className="text-2xl font-bold text-green-600">${Number(best.taxSavings || result?.estimatedSavingsUsd || 0).toFixed(2)}</div>
+            <div className="text-3xl font-extrabold text-green-600">${Number(best.taxSavings || result?.estimatedSavingsUsd || 0).toFixed(2)}</div>
             <div className="text-xs text-gray-500 mt-1">vs selling on high tax chain</div>
           </div>
         </div>

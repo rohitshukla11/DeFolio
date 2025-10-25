@@ -75,9 +75,9 @@ export default function PnLChart({
 
   if (chartData.length === 0) {
     return (
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          {title}
+      <div className="card bg-gradient-to-br from-gray-50 to-slate-50 dark:from-slate-900 dark:to-slate-950 border border-gray-200 dark:border-slate-800">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          📊 {title}
         </h3>
         <div className="flex items-center justify-center h-64 text-gray-500">
           No data available
@@ -87,11 +87,11 @@ export default function PnLChart({
   }
 
   return (
-    <div className="card">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        {title}
+    <div className="card bg-gradient-to-br from-purple-50 via-white to-pink-50 dark:from-purple-950/20 dark:via-slate-950 dark:to-pink-950/20 border border-purple-200 dark:border-purple-900/40 shadow-lg hover:shadow-xl transition-shadow">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+        📊 {title}
       </h3>
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={320}>
         <PieChart>
           <Pie
             data={chartData}
@@ -99,16 +99,18 @@ export default function PnLChart({
             cy="50%"
             labelLine={false}
             label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-            outerRadius={80}
+            outerRadius={100}
+            innerRadius={50}
             fill="#8884d8"
             dataKey="value"
+            paddingAngle={2}
           >
             {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
-          <Legend />
+          <Legend wrapperStyle={{ paddingTop: 12 }} />
         </PieChart>
       </ResponsiveContainer>
     </div>

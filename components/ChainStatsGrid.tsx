@@ -19,7 +19,7 @@ interface ChainStats {
   totalValue: number;
   txCount: number;
   lastActivity: number;
-  topToken: { symbol: string; value: number } | null;
+  topToken: { symbol: string; value: number; price?: number } | null;
 }
 
 export default function ChainStatsGrid({ balances, transactions }: ChainStatsGridProps) {
@@ -37,7 +37,7 @@ export default function ChainStatsGrid({ balances, transactions }: ChainStatsGri
       });
     });
     
-    // Calculate balance values per chain
+    // Calculate balance values per chain and attach current price if available
     balances.forEach(balance => {
       const stat = stats.get(balance.chainId);
       if (stat) {
@@ -48,6 +48,7 @@ export default function ChainStatsGrid({ balances, transactions }: ChainStatsGri
           stat.topToken = {
             symbol: balance.token.symbol,
             value: tokenValue,
+            price: (balance.usdValue && balance.balanceFormatted) ? (balance.usdValue / Math.max(balance.balanceFormatted, 1e-12)) : undefined,
           };
         }
       }
@@ -141,8 +142,13 @@ export default function ChainStatsGrid({ balances, transactions }: ChainStatsGri
                 {/* Top Token */}
                 {stat.topToken && (
                   <div className="flex items-center justify-between py-2 px-3 bg-gray-100 dark:bg-gray-800 rounded">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">Top Asset</span>
-                    <span className="font-semibold">{stat.topToken.symbol}</span>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">Top Asset</div>
+                    <div className="text-right">
+                      <div className="font-semibold">{stat.topToken.symbol}</div>
+                      {typeof stat.topToken.price === 'number' && (
+                        <div className="text-xs text-gray-500">Price: ${stat.topToken.price.toFixed(4)}</div>
+                      )}
+                    </div>
                   </div>
                 )}
 

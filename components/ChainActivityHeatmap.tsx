@@ -57,16 +57,18 @@ export default function ChainActivityHeatmap({
   };
 
   return (
-    <div className="card">
+    <div className="card bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-blue-950/20 dark:via-slate-950 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-900/40">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold">Chain Activity Heatmap</h3>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            🔥 Chain Activity Heatmap
+          </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Transaction density (last {timeWindow}h)
           </p>
         </div>
-        <div className="text-xs text-gray-500">
-          Real-time via Envio HyperSync
+        <div className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-semibold">
+          Envio HyperSync
         </div>
       </div>
 
@@ -78,19 +80,19 @@ export default function ChainActivityHeatmap({
           return (
             <div
               key={id}
-              className={`p-4 rounded-lg border transition-all duration-300 ${getColor(intensity)}`}
+              className={`p-4 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${getColor(intensity)}`}
             >
               <div className="flex items-center gap-2 mb-2">
-                <div className="text-2xl">{chain.icon || '🔗'}</div>
-                <div className="font-semibold text-sm">{chain.name}</div>
+                <div className="text-3xl">{chain.icon || '🔗'}</div>
+                <div className="font-bold text-sm">{chain.name}</div>
               </div>
               
               <div className="space-y-1">
-                <div className="text-2xl font-bold">{activity.count}</div>
-                <div className="text-xs opacity-75">transactions</div>
+                <div className="text-3xl font-extrabold">{activity.count}</div>
+                <div className="text-xs opacity-75 font-medium">transactions</div>
                 
                 {activity.volume > 0 && (
-                  <div className="text-sm font-medium mt-2">
+                  <div className="text-sm font-bold mt-2">
                     ${activity.volume.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </div>
                 )}

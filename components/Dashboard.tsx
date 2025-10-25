@@ -9,8 +9,6 @@ import axios from 'axios';
 import { WalletDashboardData } from '@/types';
 import PortfolioSummary from './PortfolioSummary';
 import TaxSummaryCard from './TaxSummaryCard';
-import BalanceList from './BalanceList';
-import TransactionList from './TransactionList';
 import PnLChart from './PnLChart';
 import ExportButtons from './ExportButtons';
 import LoadingSpinner from './LoadingSpinner';
@@ -57,11 +55,7 @@ export default function Dashboard({ walletAddress, onChangeWallet }: DashboardPr
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Navbar */}
-      <Navbar walletAddress={walletAddress} onChangeWallet={onChangeWallet} />
-
-      <div className="container mx-auto px-4 py-6 space-y-6">
+    <div className="space-y-6">
       {/* Portfolio Summary - Enhanced */}
       <PortfolioSummary portfolio={data.portfolio} />
 
@@ -93,22 +87,10 @@ export default function Dashboard({ walletAddress, onChangeWallet }: DashboardPr
         />
       </div>
 
-      {/* Asset Balances */}
-      <BalanceList
-        balances={data.portfolio.balances}
-        priceUpdates={data.priceUpdates}
-      />
-
-      {/* Real-Time Transaction Timeline - NEW FEATURE */}
+      {/* Real-Time Transaction Timeline - keep for live feel */}
       <TransactionTimeline 
         transactions={data.recentTransactions} 
         limit={10} 
-      />
-
-      {/* All Transactions Table */}
-      <TransactionList
-        transactions={data.recentTransactions}
-        walletAddress={walletAddress}
       />
 
       {/* Avail Nexus Verification Badge */}
@@ -128,11 +110,6 @@ export default function Dashboard({ walletAddress, onChangeWallet }: DashboardPr
           </div>
         </div>
       )}
-
-      </div>
-      
-      {/* Footer */}
-      <Footer />
     </div>
   );
 }

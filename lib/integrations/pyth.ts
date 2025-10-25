@@ -68,12 +68,23 @@ export class PythClient {
         }
       });
 
-      // If no prices resolved (e.g., API schema change or rate limiting), provide fallbacks
-      if (priceUpdates.size === 0) {
-        console.warn('Pyth returned no prices; using fallback prices');
-        return this.getFallbackPrices(tokens);
-      }
+      // Use fallbacks only for tokens that don't have Pyth prices
+      tokens.forEach((token) => {
+        if (!token.pythPriceId) return;
+        const normalizedPriceId = token.pythPriceId.toLowerCase().replace(/^0x/, '');
+        const tokenKey = `${token.chainId}-${token.address}`;
+        
+        // Only add fallback if no price was found
+        if (!priceUpdates.has(tokenKey)) {
+          const fallbackMap = this.getFallbackPrices([token]);
+          const fallback = fallbackMap.get(tokenKey);
+          if (fallback) {
+            priceUpdates.set(tokenKey, fallback);
+          }
+        }
+      });
 
+      console.log(`✅ Final price updates: ${priceUpdates.size} tokens`);
       return priceUpdates;
     } catch (error) {
       console.error('Error fetching prices from Pyth:', error);
@@ -109,11 +120,12 @@ export class PythClient {
 
       if (uncachedPriceIds.length > 0) {
         try {
-          // Method 1: Try HermesClient first
+          // Method 1: Try HermesClient first with ignoreInvalidPriceIds
           console.log('🔍 Pyth: Calling HermesClient.getLatestPriceUpdates...');
           const resp = await this.hermes.getLatestPriceUpdates(uncachedPriceIds, { 
             encoding: 'hex',
             parsed: true,
+            ignoreInvalidPriceIds: true, // Don't fail if some IDs are invalid
           });
           
           console.log('📦 Pyth Response Structure:', JSON.stringify(Object.keys(resp), null, 2));
@@ -142,35 +154,8 @@ export class PythClient {
             this.priceCache.set(feed.id, { price: priceData, timestamp: now });
           });
         } catch (hermesError) {
-          console.error('❌ HermesClient failed, trying direct REST API:', hermesError);
-          
-          // Method 2: Fallback to direct REST API call
-          try {
-            const idsParam = uncachedPriceIds.map(id => `ids[]=${id}`).join('&');
-            const url = `${this.baseUrl}/v2/updates/price/latest?${idsParam}&encoding=hex&parsed=true`;
-            console.log('🔍 Pyth: Calling REST API:', url);
-            
-            const response = await axios.get(url);
-            console.log('📦 Pyth REST Response:', JSON.stringify(response.data).substring(0, 300));
-            
-            const feeds = response.data.parsed || [];
-            feeds.forEach((feed: any) => {
-              const priceData: PythPriceData = {
-                id: feed.id,
-                price: this.convertPythPrice(String(feed.price.price), feed.price.expo),
-                conf: Number(feed.price.conf),
-                expo: feed.price.expo,
-                publishTime: Number(feed.price.publish_time) * 1000,
-              };
-              
-              console.log(`✅ Pyth REST: ${feed.id.substring(0, 10)}... = $${priceData.price.toFixed(2)}`);
-              
-              prices.set(feed.id, priceData);
-              this.priceCache.set(feed.id, { price: priceData, timestamp: now });
-            });
-          } catch (restError) {
-            console.error('❌ Pyth REST API also failed:', restError);
-          }
+          console.error('❌ HermesClient failed, will use fallbacks for missing prices:', hermesError);
+          // Don't try REST API again, just continue with whatever prices we have
         }
       }
 

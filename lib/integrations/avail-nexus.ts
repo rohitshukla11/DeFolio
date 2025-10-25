@@ -7,6 +7,7 @@
 // IMPORTANT: Avoid top-level import of Nexus SDK to prevent SSR import errors (it-ws exports)
 // We'll dynamically import the SDK inside initialize() on the client only
 import type { OnAllowanceHookData, OnIntentHookData } from '@avail-project/nexus-core';
+import type { Balance } from '@/types';
 
 export class AvailNexusClient {
   private sdk: any;
@@ -149,6 +150,98 @@ export class AvailNexusClient {
    */
   getSDK(): any {
     return this.sdk;
+  }
+
+  /**
+   * Fetch unified balances directly from Avail Nexus REST by address (no wallet/provider)
+   * Returns [] if REST is unavailable
+   */
+  // Removed: fetchUnifiedBalancesByAddress — Avail Nexus does not expose a public REST endpoint for this.
+
+  /**
+   * Unified balance via SDK per docs: https://docs.availproject.org/nexus/avail-nexus-sdk/nexus-core/api-reference
+   * Uses sdk.getUnifiedBalances() and maps to our Balance[] type.
+   */
+  async fetchUnifiedBalancesViaSDK(): Promise<Balance[]> {
+    if (!this.initialized || !this.sdk?.getUnifiedBalances) return [];
+    try {
+      const assets: any[] = await this.sdk.getUnifiedBalances();
+      const balances: Balance[] = [];
+      for (const asset of assets) {
+        const symbol = asset.symbol || asset.ticker || 'TOKEN';
+        const name = asset.name || symbol;
+        const decimals = typeof asset.decimals === 'number' ? asset.decimals : 18;
+        const priceUsd = Number(asset.balanceInFiat ?? 0);
+        // If breakdown exists, create per-chain balances
+        if (Array.isArray(asset.breakdown) && asset.breakdown.length > 0) {
+          for (const part of asset.breakdown) {
+            const chain = getChainByChainId(Number(part.chain?.id ?? part.chainId));
+            const chainId = chain?.id || 'ethereum';
+            const formatted = Number(part.balance ?? part.formattedBalance ?? 0);
+            const raw = part.balanceWei ?? part.balanceRaw ?? Math.floor(formatted * Math.pow(10, decimals));
+            balances.push({
+              token: {
+                address: part.tokenAddress || asset.tokenAddress || '0x0000000000000000000000000000000000000000',
+                symbol,
+                name,
+                decimals,
+                chainId,
+              },
+              balance: String(raw),
+              balanceFormatted: formatted,
+              usdValue: Number(part.balanceInFiat ?? priceUsd),
+              chainId,
+              lastUpdated: Date.now(),
+            });
+          }
+        } else {
+          // Fallback single aggregated balance without chain breakdown
+          const formatted = Number(asset.balance ?? asset.formattedBalance ?? 0);
+          const raw = asset.balanceWei ?? asset.balanceRaw ?? Math.floor(formatted * Math.pow(10, decimals));
+          const chainId = 'ethereum';
+          balances.push({
+            token: {
+              address: asset.tokenAddress || '0x0000000000000000000000000000000000000000',
+              symbol,
+              name,
+              decimals,
+              chainId,
+            },
+            balance: String(raw),
+            balanceFormatted: formatted,
+            usdValue: priceUsd,
+            chainId,
+            lastUpdated: Date.now(),
+          });
+        }
+      }
+      return balances;
+    } catch (e) {
+      console.error('Failed to fetch unified balances via SDK:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Simulate Bridge & Execute via Avail Nexus SDK
+   * Mirrors: sdk.simulateBridgeAndExecute(params)
+   */
+  async simulateBridgeAndExecute(params: any): Promise<any> {
+    if (!this.initialized || !this.sdk?.simulateBridgeAndExecute) {
+      throw new Error('Nexus SDK not initialized');
+    }
+    return await this.sdk.simulateBridgeAndExecute(params);
+  }
+
+  /**
+   * Execute Bridge & Execute via Avail Nexus SDK
+   * Mirrors: sdk.bridgeAndExecute(params)
+   */
+  async bridgeAndExecute(params: any): Promise<any> {
+    if (!this.initialized || !this.sdk?.bridgeAndExecute) {
+      throw new Error('Nexus SDK not initialized');
+    }
+    return await this.sdk.bridgeAndExecute(params);
   }
 }
 

@@ -30,7 +30,10 @@ export function calculateTokenPnL(
   );
 
   // Convert to simplified format for FIFO calculation
-  const simplifiedTxs: TokenTransaction[] = tokenTxs.map((tx) => ({
+  const simplifiedTxs: TokenTransaction[] = tokenTxs
+    // Ignore zero-amount transfers which skew FIFO and PnL
+    .filter((tx) => tx.valueFormatted > 0)
+    .map((tx) => ({
     timestamp: tx.timestamp,
     amount: tx.valueFormatted,
     priceUsd: tx.usdValueAtTime || 0,
@@ -41,8 +44,22 @@ export function calculateTokenPnL(
   // Sort by timestamp (oldest first)
   simplifiedTxs.sort((a, b) => a.timestamp - b.timestamp);
 
+  console.log(`🧮 PnL Calc for ${token.symbol}:`);
+  console.log(`  Total txs: ${simplifiedTxs.length}`);
+  console.log(`  Buys: ${simplifiedTxs.filter(tx => tx.type === 'buy').length}`);
+  console.log(`  Sells: ${simplifiedTxs.filter(tx => tx.type === 'sell').length}`);
+  console.log(`  First 3 txs:`, simplifiedTxs.slice(0, 3).map(tx => ({
+    type: tx.type,
+    amount: tx.amount,
+    priceUsd: tx.priceUsd,
+    timestamp: new Date(tx.timestamp).toISOString()
+  })));
+
   // Calculate using FIFO
   const { realizedPnL, remainingLots, totalInvested } = calculateFIFO(simplifiedTxs);
+
+  console.log(`  Remaining lots: ${remainingLots.length}, Total amount in lots: ${remainingLots.reduce((sum, lot) => sum + lot.amount, 0)}`);
+  console.log(`  Realized PnL: ${realizedPnL}, Total Invested: ${totalInvested}`);
 
   // Calculate cost basis (average purchase price of remaining holdings)
   const costBasis = remainingLots.length > 0
@@ -55,6 +72,9 @@ export function calculateTokenPnL(
 
   // Calculate unrealized PnL (what you'd make if you sold now)
   const unrealizedPnL = currentValue - (costBasis * currentBalance.balanceFormatted);
+
+  console.log(`  Cost basis: ${costBasis}, Current price: ${currentPrice}`);
+  console.log(`  Current value: ${currentValue}, Unrealized PnL: ${unrealizedPnL}`);
 
   // Total PnL
   const totalPnL = realizedPnL + unrealizedPnL;

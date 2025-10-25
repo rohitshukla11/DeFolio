@@ -86,11 +86,23 @@ export function useAvailNexus() {
    * Get unified balances from Avail Nexus SDK
    */
   const getUnifiedBalances = useCallback(async (walletAddress: string): Promise<Balance[]> => {
-    if (!nexusUnifiedClient.isReady()) {
-      // Gracefully return empty list when SDK isn't initialized (no wallet connected)
+    // Try SDK unified balances if initialized
+    try {
+      if (availNexusClient.isInitialized()) {
+        const viaSdk = await availNexusClient.fetchUnifiedBalancesViaSDK();
+        if (viaSdk && viaSdk.length > 0) return viaSdk;
+      }
+    } catch {}
+
+    // Otherwise, use our server API which derives balances from HyperSync and falls back to RPC
+    try {
+      const resp = await fetch(`/api/avail/unified-balance/${walletAddress}`);
+      if (!resp.ok) return [];
+      const json = await resp.json();
+      return Array.isArray(json.data) ? (json.data as Balance[]) : [];
+    } catch {
       return [];
     }
-    return await fetchUnifiedBalances(walletAddress);
   }, []);
 
   /**
@@ -115,6 +127,26 @@ export function useAvailNexus() {
   }, [isInitialized]);
 
   /**
+   * Simulate Bridge & Execute via Nexus
+   */
+  const simulateBridgeAndExecute = useCallback(async (params: any) => {
+    if (!isInitialized) {
+      throw new Error('Nexus not initialized');
+    }
+    return await availNexusClient.simulateBridgeAndExecute(params);
+  }, [isInitialized]);
+
+  /**
+   * Bridge & Execute via Nexus
+   */
+  const bridgeAndExecute = useCallback(async (params: any) => {
+    if (!isInitialized) {
+      throw new Error('Nexus not initialized');
+    }
+    return await availNexusClient.bridgeAndExecute(params);
+  }, [isInitialized]);
+
+  /**
    * Generate proof of ownership (uses Avail client helper for now)
    */
   const generateProof = useCallback(async (params: { address: string; chains?: string[]; timestamp?: number }) => {
@@ -136,6 +168,8 @@ export function useAvailNexus() {
     deinitialize,
     executeCrossChain,
     executeIntent,
+    simulateBridgeAndExecute,
+    bridgeAndExecute,
     getUnifiedBalances,
     generateProof,
     intentRef,

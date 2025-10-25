@@ -18,6 +18,7 @@
 import { HypersyncClient, Query, Decoder, BlockField, TransactionField, LogField } from "@envio-dev/hypersync-client";
 import { Transaction, ChainId } from '@/types';
 import { getChainById } from '@/config/chains';
+import { getTokenByAddress } from '@/config/tokens';
 
 // HyperSync endpoints for each chain
 const HYPERSYNC_ENDPOINTS: Record<ChainId, string> = {
@@ -69,26 +70,25 @@ export class EnvioHyperSyncClient {
 
     console.log('🔍 Fetching transactions from Envio HyperSync for:', walletAddress);
 
-    // Fetch from each chain in parallel
-    const promises = chainIds.map((chainId) =>
-      this.fetchChainTransactions(walletAddress, chainId, options)
-    );
+    // Fetch native transactions and ERC20 transfers from each chain in parallel
+    const promises = chainIds.flatMap((chainId) => [
+      this.fetchChainTransactions(walletAddress, chainId, options),
+      this.fetchERC20Transfers(walletAddress, chainId, options),
+    ]);
 
     const results = await Promise.allSettled(promises);
 
-    results.forEach((result, index) => {
+    results.forEach((result) => {
       if (result.status === 'fulfilled') {
         allTransactions.push(...result.value);
-        console.log(`✅ Fetched ${result.value.length} transactions from ${chainIds[index]}`);
-      } else {
-        console.error(`❌ Failed to fetch from ${chainIds[index]}:`, result.reason);
       }
     });
+
+    console.log(`✅ Total transactions (native + ERC20) fetched via HyperSync: ${allTransactions.length}`);
 
     // Sort by block number descending (newest first)
     const sorted = allTransactions.sort((a, b) => b.blockNumber - a.blockNumber);
     
-    console.log(`✅ Total transactions fetched via HyperSync: ${sorted.length}`);
     return sorted;
   }
 
@@ -217,8 +217,15 @@ export class EnvioHyperSyncClient {
 
     // Chain-native token metadata (fallback when ERC20 detection not parsed)
     const chain = getChainById(chainId);
-    const nativeToken = {
-      address: '0x0000000000000000000000000000000000000000',
+    // Use correct native token address per chain to match config/tokens.ts
+    // Polygon uses 0x...1010 for MATIC (not 0x0...0)
+    const nativeAddress = chainId === 'polygon'
+      ? '0x0000000000000000000000000000000000001010'
+      : '0x0000000000000000000000000000000000000000';
+
+    // Get configured token (includes pythPriceId) or fallback
+    const nativeToken = getTokenByAddress(nativeAddress, chainId) || {
+      address: nativeAddress,
       symbol: chain.nativeCurrency.symbol,
       name: chain.nativeCurrency.name,
       decimals: chain.nativeCurrency.decimals,
@@ -392,6 +399,178 @@ export class EnvioHyperSyncClient {
       return [];
     }
   }
+  /**
+   * Fetch ERC20 token transfers and convert to Transaction format
+   */
+  private async fetchERC20Transfers(
+    walletAddress: string,
+    chainId: ChainId,
+    options?: {
+      limit?: number;
+      fromBlock?: number;
+      toBlock?: number;
+    }
+  ): Promise<Transaction[]> {
+    const client = this.clients.get(chainId);
+    if (!client) {
+      return [];
+    }
+
+    const address = walletAddress.toLowerCase();
+    const addressPadded = '0x' + '0'.repeat(24) + address.slice(2);
+    
+    // ERC20 Transfer event signature
+    const TRANSFER_EVENT = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+    const query: Query = {
+      fromBlock: options?.fromBlock || 0,
+      ...(options?.toBlock && { toBlock: options.toBlock }),
+      logs: [
+        {
+          topics: [
+            [TRANSFER_EVENT], // Transfer event
+            [], // from (any)
+            [addressPadded], // to (this wallet, padded)
+          ],
+        },
+        {
+          topics: [
+            [TRANSFER_EVENT], // Transfer event
+            [addressPadded], // from (this wallet, padded)
+            [], // to (any)
+          ],
+        }
+      ],
+      fieldSelection: {
+        log: [
+          LogField.BlockNumber,
+          LogField.LogIndex,
+          LogField.TransactionHash,
+          LogField.Address,
+          LogField.Data,
+          LogField.Topic1,
+          LogField.Topic2,
+          LogField.Topic3,
+        ],
+        block: [
+          BlockField.Number,
+          BlockField.Timestamp,
+        ],
+      },
+      maxNumLogs: options?.limit || 500,
+    };
+
+    try {
+      console.log(`🔍 Querying ERC20 transfers for ${chainId} with ${options?.limit || 500} max logs`);
+      const response = await client.get(query);
+      const logs = response.data?.logs || [];
+      const blocks = response.data?.blocks || [];
+      
+      console.log(`📦 Received ${logs.length} ERC20 logs from ${chainId}`);
+      if (logs.length > 0) {
+        console.log(`Sample log:`, logs[0]);
+      }
+
+      // Build block timestamp map
+      const blockTimestamps: Record<number, number> = {};
+      blocks.forEach((b: any, idx: number) => {
+        const ts = b.Timestamp ?? b.timestamp;
+        if (typeof ts === 'number') blockTimestamps[idx] = ts;
+      });
+
+      const transactions: Transaction[] = [];
+      const chain = getChainById(chainId);
+
+      logs.forEach((log: any, idx: number) => {
+        try {
+          const tokenAddress = log.address || log.Address;
+          if (!tokenAddress) return;
+
+          // Decode topics
+          const topic1 = log.topic1 || log.Topic1 || log.topics?.[1] || '';
+          const topic2 = log.topic2 || log.Topic2 || log.topics?.[2] || '';
+          const topic3 = log.topic3 || log.Topic3 || log.topics?.[3] || '';
+          const from = '0x' + topic1.slice(-40);
+          const to = '0x' + topic2.slice(-40);
+          const isReceived = to.toLowerCase() === address;
+
+          // Decode amount - ERC20 Transfer logs encode amount in topic3 OR data
+          // Standard ERC20: amount in data field
+          // Some tokens: amount in topic3 (indexed)
+          const dataHex = log.data || log.Data || '0x';
+          let amount = BigInt(0);
+          
+          // Try data field first
+          if (dataHex && dataHex !== '0x' && dataHex.length > 2) {
+            try {
+              amount = BigInt(dataHex);
+            } catch (e) {
+              // Failed, try topic3
+            }
+          }
+          
+          // If data was empty or failed, try topic3
+          if (amount === BigInt(0) && topic3 && topic3 !== '0x') {
+            try {
+              amount = BigInt(topic3);
+            } catch (e) {
+              console.warn(`Failed to parse amount from both data and topic3`);
+              return;
+            }
+          }
+          
+          if (amount === BigInt(0)) {
+            return; // Skip zero-amount transfers
+          }
+
+          // Get configured token or create placeholder
+          const configuredToken = getTokenByAddress(tokenAddress, chainId);
+          if (!configuredToken) {
+            console.log(`⚠️ Token ${tokenAddress} not in config, skipping`);
+            return;
+          }
+
+          const decimals = configuredToken.decimals || 18;
+          const valueFormatted = Number(amount) / Math.pow(10, decimals);
+
+          const timestamp = blockTimestamps[idx] ? blockTimestamps[idx] * 1000 : Date.now();
+          const blockNumber = log.block_number || log.blockNumber || 0;
+
+          const tx = {
+            id: `${chainId}-${log.transaction_hash || log.transactionHash}-${log.log_index || log.logIndex}`,
+            hash: log.transaction_hash || log.transactionHash || '',
+            from,
+            to,
+            value: amount.toString(),
+            valueFormatted,
+            timestamp,
+            blockNumber,
+            chainId,
+            type: isReceived ? 'receive' : 'send',
+            status: 'confirmed' as const,
+            token: configuredToken,
+            gasUsed: '0',
+            nonce: 0,
+            input: '',
+            usdValueAtTime: undefined,
+          };
+          transactions.push(tx);
+        } catch (err) {
+          console.error(`Error parsing ERC20 log:`, err);
+        }
+      });
+
+      console.log(`✅ Fetched ${transactions.length} ERC20 transfers from ${chainId}`);
+      if (transactions.length > 0) {
+        console.log(`Sample ERC20 transfer:`, transactions[0]);
+      }
+      return transactions;
+    } catch (error) {
+      console.error(`Error fetching ERC20 transfers for ${chainId}:`, error);
+      return [];
+    }
+  }
+
   async fetchTokenTransfers(
     walletAddress: string,
     chainId: ChainId,

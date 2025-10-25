@@ -11,6 +11,7 @@ export interface Chain {
   chainId: number;
   rpcUrl: string;
   explorerUrl: string;
+  icon?: string;
   nativeCurrency: {
     name: string;
     symbol: string;

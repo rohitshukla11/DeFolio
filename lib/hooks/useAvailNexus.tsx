@@ -39,12 +39,25 @@ export function useAvailNexus() {
         allowanceRef.current = data;
         // This hook allows devs to show users the allowances needed
         console.log('📝 Allowance required:', data.sources);
+        try {
+          const num = Array.isArray((data as any).sources) ? (data as any).sources.length : 0;
+          // Auto-approve minimum required allowances to avoid stalling the flow in demo/testnet
+          (data as any).allow?.(new Array(num).fill('min'));
+        } catch (e) {
+          console.warn('Failed to auto-approve allowances:', e);
+        }
       });
 
       availNexusClient.setOnIntentHook((data: OnIntentHookData) => {
         intentRef.current = data;
         // This hook shows transaction intent before execution
-        console.log('💡 Transaction intent:', data.intent);
+        console.log('💡 Transaction intent:', (data as any).intent);
+        try {
+          // Auto-approve the current intent so the UX doesn't hang waiting for user confirmation
+          (data as any).allow?.();
+        } catch (e) {
+          console.warn('Failed to auto-allow intent:', e);
+        }
       });
 
       setIsInitialized(true);

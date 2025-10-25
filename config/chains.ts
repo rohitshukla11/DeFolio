@@ -11,6 +11,7 @@ export const SUPPORTED_CHAINS: Record<ChainId, Chain> = {
     chainId: 1,
     rpcUrl: process.env.ETHEREUM_RPC_URL || 'https://eth.llamarpc.com',
     explorerUrl: 'https://etherscan.io',
+    icon: '🔷',
     nativeCurrency: {
       name: 'Ether',
       symbol: 'ETH',
@@ -23,6 +24,7 @@ export const SUPPORTED_CHAINS: Record<ChainId, Chain> = {
     chainId: 137,
     rpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon.llamarpc.com',
     explorerUrl: 'https://polygonscan.com',
+    icon: '⬣',
     nativeCurrency: {
       name: 'MATIC',
       symbol: 'MATIC',
@@ -35,6 +37,7 @@ export const SUPPORTED_CHAINS: Record<ChainId, Chain> = {
     chainId: 42161,
     rpcUrl: process.env.ARBITRUM_RPC_URL || 'https://arbitrum.llamarpc.com',
     explorerUrl: 'https://arbiscan.io',
+    icon: '🔵',
     nativeCurrency: {
       name: 'Ether',
       symbol: 'ETH',
@@ -47,6 +50,7 @@ export const SUPPORTED_CHAINS: Record<ChainId, Chain> = {
     chainId: 8453,
     rpcUrl: process.env.BASE_RPC_URL || 'https://base.llamarpc.com',
     explorerUrl: 'https://basescan.org',
+    icon: '🔷',
     nativeCurrency: {
       name: 'Ether',
       symbol: 'ETH',

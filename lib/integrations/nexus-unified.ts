@@ -35,7 +35,7 @@ export class NexusUnifiedBalanceClient {
       const mod: any = await import('@avail-project/nexus-core');
       const NexusSDK = mod.NexusSDK || mod.default || mod;
       this.sdk = new NexusSDK({
-        network: process.env.NODE_ENV === 'production' ? 'mainnet' : 'mainnet',
+        network: process.env.NODE_ENV === 'production' ? 'mainnet' : 'testnet',
         debug: process.env.NODE_ENV === 'development',
       });
       await this.sdk.initialize(provider);

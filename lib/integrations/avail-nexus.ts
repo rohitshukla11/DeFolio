@@ -228,10 +228,31 @@ export class AvailNexusClient {
    * Mirrors: sdk.simulateBridgeAndExecute(params)
    */
   async simulateBridgeAndExecute(params: any): Promise<any> {
-    if (!this.initialized || !this.sdk?.simulateBridgeAndExecute) {
+    if (!this.initialized) {
       throw new Error('Nexus SDK not initialized');
     }
-    return await this.sdk.simulateBridgeAndExecute(params);
+    // If no execution payload is supplied, prefer bridge simulation when available
+    const wantsExecution = !!(params?.toContractAddress || params?.ca || params?.calldata || params?.execute);
+
+    try {
+      if (!wantsExecution && this.sdk?.simulateBridge) {
+        return await this.sdk.simulateBridge(params);
+      }
+      if (this.sdk?.simulateBridgeAndExecute) {
+        return await this.sdk.simulateBridgeAndExecute(params);
+      }
+      if (this.sdk?.simulateBridge) {
+        return await this.sdk.simulateBridge(params);
+      }
+      throw new Error('Nexus SDK missing simulate methods');
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      // Fallback: if CA not applicable, try pure bridge simulation
+      if (msg.toLowerCase().includes('ca not applicable') && this.sdk?.simulateBridge) {
+        return await this.sdk.simulateBridge(params);
+      }
+      throw e;
+    }
   }
 
   /**
@@ -239,10 +260,30 @@ export class AvailNexusClient {
    * Mirrors: sdk.bridgeAndExecute(params)
    */
   async bridgeAndExecute(params: any): Promise<any> {
-    if (!this.initialized || !this.sdk?.bridgeAndExecute) {
+    if (!this.initialized) {
       throw new Error('Nexus SDK not initialized');
     }
-    return await this.sdk.bridgeAndExecute(params);
+    const wantsExecution = !!(params?.toContractAddress || params?.ca || params?.calldata || params?.execute);
+    try {
+      // If no execution payload is provided, prefer bridge-only when available
+      if (!wantsExecution && this.sdk?.bridge) {
+        return await this.sdk.bridge(params);
+      }
+      if (this.sdk?.bridgeAndExecute) {
+        return await this.sdk.bridgeAndExecute(params);
+      }
+      if (this.sdk?.bridge) {
+        return await this.sdk.bridge(params);
+      }
+      throw new Error('Nexus SDK missing bridge methods');
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      // Fallback: if CA not applicable, try bridge-only
+      if (msg.toLowerCase().includes('ca not applicable') && this.sdk?.bridge) {
+        return await this.sdk.bridge(params);
+      }
+      throw e;
+    }
   }
 }
 

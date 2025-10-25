@@ -62,9 +62,28 @@ export default async function handler(
     );
 
     // Get unique tokens from balances (guard against undefined)
-    const tokens = balances
+    const balanceTokens = balances
       .map((b) => b.token)
       .filter((t) => t && t.address);
+
+    // Also include tokens seen in transactions so PnL works even if balance is 0 now
+    const txTokenMap = new Map<string, any>();
+    transactions.forEach((tx) => {
+      if (!tx.token || !tx.token.address) return;
+      const key = `${tx.chainId}-${tx.token.address.toLowerCase()}`;
+      if (!txTokenMap.has(key)) txTokenMap.set(key, tx.token);
+    });
+    const txTokens = Array.from(txTokenMap.values());
+
+    // Union of balance tokens and tx tokens for pricing
+    const tokens = Array.from(
+      new Map(
+        [...balanceTokens, ...txTokens].map((t) => [
+          `${t.chainId}-${t.address.toLowerCase()}`,
+          t,
+        ])
+      ).values()
+    );
 
     // Fetch real-time prices
     console.log(`🔍 Fetching prices for ${tokens.length} tokens`);
@@ -86,39 +105,112 @@ export default async function handler(
       }
     });
 
-    // Update transactions with USD values (use current price as fallback)
-    transactions.forEach((tx) => {
+    // Update transactions with USD values
+    // Strategy:
+    // 1) If we have a live price for the token and tx is buy-side, set when missing
+    // 2) For any remaining txs (including sells) with missing usdValueAtTime, approximate
+    //    historical price via Pyth around the tx timestamp
+    let pricesMissing = 0;
+    let pricesApplied = 0;
+    for (const tx of transactions) {
       if (!tx.token || !tx.token.address) return;
       const priceKey = `${tx.chainId}-${tx.token.address}`;
       const priceUpdate = priceUpdates.get(priceKey);
-      if (priceUpdate && !tx.usdValueAtTime) {
-        tx.usdValueAtTime = priceUpdate.price;
+      if (priceUpdate) {
+        // Apply current price only to buy-side txs (receive/swap) when missing
+        if ((tx.type === 'receive' || tx.type === 'swap') && (!tx.usdValueAtTime || tx.usdValueAtTime === 0)) {
+          tx.usdValueAtTime = priceUpdate.price;
+          pricesApplied++;
+        }
       }
+    }
+
+    // Approximate historical price for any remaining txs with missing price
+    let historicalApplied = 0;
+    for (const tx of transactions) {
+      if (!tx.token || !tx.token.address) continue;
+      if (tx.usdValueAtTime && tx.usdValueAtTime > 0) continue;
+      const approx = await pythClient.approximateHistoricalPrice(tx.token, tx.timestamp);
+      if (approx && approx > 0) {
+        tx.usdValueAtTime = approx;
+        historicalApplied++;
+      } else {
+        pricesMissing++;
+      }
+    }
+    console.log(`💰 Applied ${pricesApplied} live prices and ${historicalApplied} historical approximations. Remaining missing: ${pricesMissing}`);
+    console.log(`💰 Prices applied to ${pricesApplied} transactions, ${pricesMissing} missing prices`);
+    if (transactions.length > 0) {
+      console.log(`Sample transaction:`, {
+        type: transactions[0].type,
+        token: transactions[0].token.symbol,
+        amount: transactions[0].valueFormatted,
+        usdValueAtTime: transactions[0].usdValueAtTime,
+        chainId: transactions[0].chainId,
+      });
+    }
+
+    // Build a quick lookup from token key to current balance (or 0 if not present)
+    const balanceByKey = new Map<string, typeof balances[number]>();
+    balances.forEach((b) => {
+      balanceByKey.set(`${b.chainId}-${b.token.address.toLowerCase()}`, b);
     });
 
-    // Calculate PnL for each token
-    const pnlByToken = balances
-      .filter((balance) => balance.token && balance.token.address)
-      .map((balance) => {
-        const tokenAddressLc = balance.token.address.toLowerCase();
-        const tokenTransactions = transactions.filter(
-          (tx) => tx.token && tx.token.address &&
-            tx.token.address.toLowerCase() === tokenAddressLc &&
-            tx.chainId === balance.chainId
-        );
+    // Calculate PnL for each token appearing either in balances or transactions
+    const pnlByToken = tokens.map((token) => {
+      const key = `${token.chainId}-${token.address.toLowerCase()}`;
+      const tokenTransactions = transactions.filter(
+        (tx) => tx.token && tx.token.address &&
+          tx.token.address.toLowerCase() === token.address.toLowerCase() &&
+          tx.chainId === token.chainId
+      );
 
-        const priceKey = `${balance.chainId}-${balance.token.address}`;
-        const currentPrice = priceUpdates.get(priceKey)?.price || 0;
+      const nonZeroTxs = tokenTransactions.filter((tx) => tx.valueFormatted > 0);
 
-        return calculateTokenPnL(balance.token, tokenTransactions, balance, currentPrice);
-      });
+      const currentPrice = priceUpdates.get(`${token.chainId}-${token.address}`)?.price || 0;
+
+      const balance =
+        balanceByKey.get(key) || {
+          token,
+          balance: '0',
+          balanceFormatted: 0,
+          usdValue: 0,
+          chainId: token.chainId,
+          lastUpdated: Date.now(),
+        };
+
+      const pnl = calculateTokenPnL(token, nonZeroTxs, balance, currentPrice);
+
+      if (token.symbol === 'ETH' && token.chainId === 'ethereum') {
+        console.log(`📊 PnL Debug for ${token.symbol}:`, {
+          transactions: nonZeroTxs.length,
+          currentPrice,
+          balance: (balance as any).balanceFormatted,
+          pnl: {
+            realized: pnl.realizedPnL,
+            unrealized: pnl.unrealizedPnL,
+            total: pnl.totalPnL,
+            costBasis: pnl.costBasis,
+            totalInvested: pnl.totalInvested,
+          },
+          sampleTx: nonZeroTxs[0] ? {
+            type: nonZeroTxs[0].type,
+            amount: nonZeroTxs[0].valueFormatted,
+            usdValueAtTime: nonZeroTxs[0].usdValueAtTime,
+          } : null,
+        });
+      }
+
+      return pnl;
+    });
 
     // Calculate portfolio-wide metrics
     const portfolioMetrics = calculatePortfolioPnL(pnlByToken);
     const pnlByChain = calculatePnLByChain(pnlByToken);
 
     // Compute tax summary
-    const taxLots = calculateTaxLots(transactions);
+    // Exclude zero amount txs from tax lots as well
+    const taxLots = calculateTaxLots(transactions.filter((t) => t.valueFormatted > 0));
     const ONE_YEAR = 365 * 24 * 60 * 60 * 1000;
     const byChain: Record<ChainId, { shortTermGains: number; longTermGains: number; totalCapitalGains: number }> = {
       ethereum: { shortTermGains: 0, longTermGains: 0, totalCapitalGains: 0 },

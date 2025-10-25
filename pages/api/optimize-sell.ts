@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { token = 'ETH', amountUsd = 10000, holdings }: { token?: string; amountUsd?: number; holdings?: Holding[] } = JSON.parse(req.body || '{}');
+    const { token = 'ETH', amountUsd, amountToken, holdings }: { token?: string; amountUsd?: number; amountToken?: number; holdings?: Holding[] } = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
 
     // Default holdings per user story
     const effectiveHoldings: Holding[] = holdings && Array.isArray(holdings) && holdings.length > 0
@@ -31,7 +31,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const priceUsd = await pythClient.getTokenPrice(ethToken);
     const resolvedPrice = priceUsd && priceUsd > 0 ? priceUsd : 3000; // Fallback if needed
-    const amountToken = amountUsd / resolvedPrice;
+    const useAmountToken = typeof amountToken === 'number' && amountToken > 0 ? amountToken : undefined;
+    const finalAmountToken = useAmountToken ?? ((typeof amountUsd === 'number' && amountUsd > 0) ? (amountUsd / resolvedPrice) : 0);
+    const finalAmountUsd = useAmountToken ? (useAmountToken * resolvedPrice) : (amountUsd || 0);
 
     // Tax rates based on holding period (simplified for demo)
     const getTaxRate = (days: number) => (days >= 365 ? 0.15 : 0.37);
@@ -45,8 +47,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (ethHolding) {
       const rate = getTaxRate(ethHolding.holdingDays);
-      const taxLiability = amountUsd * rate;
-      const netProceeds = amountUsd - taxLiability;
+      const taxLiability = finalAmountUsd * rate;
+      const netProceeds = finalAmountUsd - taxLiability;
       options.push({
         label: 'Sell on Ethereum (direct)',
         action: 'SELL',
@@ -60,9 +62,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (arbHolding) {
       const rate = getTaxRate(arbHolding.holdingDays);
-      const taxLiability = amountUsd * rate;
+      const taxLiability = finalAmountUsd * rate;
       const bridgingCostUsd = 20; // demo estimate
-      const netProceeds = amountUsd - taxLiability - bridgingCostUsd;
+      const netProceeds = finalAmountUsd - taxLiability - bridgingCostUsd;
       options.push({
         label: 'Bridge from Arbitrum → Sell on Ethereum (Bridge & Execute)',
         action: 'BRIDGE_AND_EXECUTE',
@@ -75,7 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Suggested params for Avail Nexus SDK bridge & execute (placeholder)
         bridgeAndExecuteParams: {
           token: 'ETH',
-          amount: String(Math.floor(amountToken * 1e18)), // wei approximation
+          amount: String(Math.floor(finalAmountToken * 1e18)), // wei approximation
           toChainId: 1, // Ethereum
           sourceChains: [42161], // Arbitrum
           waitForReceipt: true,

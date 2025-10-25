@@ -14,12 +14,8 @@ import PnLChart from './PnLChart';
 import ExportButtons from './ExportButtons';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorDisplay from './ErrorDisplay';
-import { useEffect, useState } from 'react';
-import { useAvailNexus } from '@/lib/hooks/useAvailNexus';
-import type { Balance } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { } from 'react';
+import TaxOptimizedSellCard from './TaxOptimizedSellCard';
 
 interface DashboardProps {
   walletAddress: string;
@@ -27,42 +23,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ walletAddress, onChangeWallet }: DashboardProps) {
-  // Avail Nexus unified balances (client-side only)
-  const { isInitialized, isInitializing, initialize, getUnifiedBalances } = useAvailNexus();
-  const [nexusBalances, setNexusBalances] = useState<Balance[] | null>(null);
-  const [nexusError, setNexusError] = useState<string | null>(null);
-  const [nexusLoading, setNexusLoading] = useState<boolean>(false);
-
-  useEffect(() => {
-    let mounted = true;
-    async function fetchNexusBalances() {
-      if (!walletAddress) return;
-      setNexusError(null);
-      setNexusLoading(true);
-      try {
-        // Try to initialize only if provider is available; otherwise skip silently
-        if (!isInitialized && !isInitializing && (typeof window !== 'undefined') && (window as any).ethereum) {
-          await initialize((window as any).ethereum);
-        }
-        const data = await getUnifiedBalances(walletAddress);
-        if (!mounted) return;
-        setNexusBalances(data);
-      } catch (e: any) {
-        if (!mounted) return;
-        // If SDK not initialized, just present empty balances without error banner
-        if (String(e?.message || '').includes('Nexus SDK not initialized')) {
-          setNexusBalances([]);
-          setNexusError(null);
-        } else {
-          setNexusError(e?.message || 'Failed to fetch balances via Avail Nexus');
-        }
-      } finally {
-        if (mounted) setNexusLoading(false);
-      }
-    }
-    fetchNexusBalances();
-    return () => { mounted = false; };
-  }, [walletAddress, isInitialized, isInitializing, initialize, getUnifiedBalances]);
+  // Removed unified balances section per request
   // Fetch wallet data
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['wallet', walletAddress],
@@ -103,13 +64,8 @@ export default function Dashboard({ walletAddress, onChangeWallet }: DashboardPr
           </p>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => refetch()} className="btn btn-secondary">
-            <span className="spinner mr-2" />
-            Refresh
-          </button>
-          <button onClick={onChangeWallet} className="btn btn-secondary">
-            Change Wallet
-          </button>
+          <ExportButtons walletAddress={walletAddress} />
+          <button onClick={onChangeWallet} className="btn btn-secondary">Change Wallet</button>
         </div>
       </div>
 
@@ -119,61 +75,10 @@ export default function Dashboard({ walletAddress, onChangeWallet }: DashboardPr
       {/* Tax Summary */}
       {data.taxSummary && <TaxSummaryCard taxSummary={data.taxSummary} />}
 
-      {/* Export Buttons */}
-      <ExportButtons walletAddress={walletAddress} />
+      {/* Tax-Optimized Sell with Bridge & Execute (Avail Nexus) */}
+      <TaxOptimizedSellCard defaultToken="ETH" defaultAmountUsd={10000} />
 
-      {/* Unified Balances via Avail Nexus */}
-      <div className="flex items-center justify-between mt-2">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Unified Balances</h3>
-        <Badge variant="secondary">Powered by Avail Nexus SDK</Badge>
-      </div>
-      {(nexusLoading || isInitializing) && (
-        <div className="space-y-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">Fetching balances via Avail Nexus...</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i}>
-                <CardContent>
-                  <div className="space-y-4 py-2">
-                    <Skeleton className="h-5 w-40" />
-                    <Skeleton className="h-8 w-24" />
-                    <Skeleton className="h-4 w-32" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-      {nexusError && (
-        <Card className="border-red-300 dark:border-red-800">
-          <CardHeader>
-            <CardTitle className="text-red-600 dark:text-red-400">Avail Nexus Balances Unavailable</CardTitle>
-            <CardDescription className="text-red-500 dark:text-red-300">{nexusError}</CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-      {nexusBalances && nexusBalances.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {nexusBalances.map((b, idx) => (
-            <Card key={`${b.chainId}-${b.token.address}-${idx}`}>
-              <CardHeader className="flex items-center justify-between">
-                <CardTitle>{b.token.symbol}</CardTitle>
-                <Badge variant="outline">{b.chainId}</Badge>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {b.balanceFormatted.toLocaleString(undefined, { maximumFractionDigits: 6 })}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">{b.token.name}</div>
-                <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
-                  USD Value: ${b.usdValue?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || '0.00'}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {/* Unified Balances removed per request */}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -190,6 +95,8 @@ export default function Dashboard({ walletAddress, onChangeWallet }: DashboardPr
         balances={data.portfolio.balances}
         priceUpdates={data.priceUpdates}
       />
+
+      {/* Tax Recommendations removed per request */}
 
       {/* Recent Transactions */}
       <TransactionList

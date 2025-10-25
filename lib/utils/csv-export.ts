@@ -45,10 +45,10 @@ export function generateTaxReportCSV(
       let holdingDays = 0;
       let disposition: 'N/A' | 'Short-Term' | 'Long-Term' = 'N/A';
 
-      if (tx.type === 'receive' || tx.type === 'swap') {
-        // treat receive/swap-in as acquisition
+      if (tx.type === 'receive') {
+        // treat receive as acquisition
         lots.push({ amount, priceUsd: unitPrice, timestamp: tx.timestamp });
-      } else if (tx.type === 'send' || tx.type === 'swap') {
+      } else if (tx.type === 'send') {
         // sell/disposition using FIFO
         let remaining = amount;
         while (remaining > 0 && lots.length > 0) {

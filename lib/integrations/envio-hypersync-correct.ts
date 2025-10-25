@@ -251,7 +251,6 @@ export class EnvioHyperSyncClient {
       const valueFormatted = Number(rawValueBigInt) / Math.pow(10, decimals);
       
       transactions.push({
-        id: `${chainId}-${tx.hash}`,
         hash: tx.hash,
         from: tx.from,
         to: tx.to || '',
@@ -260,14 +259,11 @@ export class EnvioHyperSyncClient {
         timestamp,
         blockNumber: tx.blockNumber ?? tx.block_number,
         chainId,
-        type: isReceived ? 'receive' : 'send',
-        status: 'confirmed',
+        type: (isReceived ? 'receive' : 'send') as 'receive' | 'send',
+        status: 'confirmed' as const,
         gasUsed: (tx.gasUsed ?? tx.gas_used ?? 0).toString(),
         gasPriceUsd: undefined,
-        nonce: Number(tx.nonce ?? 0),
-        input: tx.input || '',
         token: nativeToken,
-        // Token info would need additional log parsing
         usdValueAtTime: undefined,
       });
     });
@@ -537,7 +533,6 @@ export class EnvioHyperSyncClient {
           const blockNumber = log.block_number || log.blockNumber || 0;
 
           const tx = {
-            id: `${chainId}-${log.transaction_hash || log.transactionHash}-${log.log_index || log.logIndex}`,
             hash: log.transaction_hash || log.transactionHash || '',
             from,
             to,
@@ -546,12 +541,10 @@ export class EnvioHyperSyncClient {
             timestamp,
             blockNumber,
             chainId,
-            type: isReceived ? 'receive' : 'send',
+            type: (isReceived ? 'receive' : 'send') as 'receive' | 'send',
             status: 'confirmed' as const,
             token: configuredToken,
             gasUsed: '0',
-            nonce: 0,
-            input: '',
             usdValueAtTime: undefined,
           };
           transactions.push(tx);

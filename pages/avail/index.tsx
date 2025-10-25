@@ -26,11 +26,12 @@ export default function AvailPage() {
   const [execResult, setExecResult] = useState<any | null>(null);
 
   async function handleFetch() {
-    if (!address) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await getUnifiedBalances(address);
+      // If SDK is initialized, unified balances come from the connected wallet
+      // Even if address is blank. If not initialized, requires an address.
+      const res = await getUnifiedBalances(address || '');
       setBalances(res);
     } catch (e: any) {
       setError(e?.message || 'Failed to fetch balances');
@@ -108,13 +109,13 @@ export default function AvailPage() {
               onChange={(e) => setAddress(e.target.value)}
               className="w-full border rounded px-3 py-2 bg-background"
             />
-            <button onClick={handleFetch} className="btn btn-primary" disabled={loading || !address}>
+            <button onClick={handleFetch} className="btn btn-primary" disabled={loading || (!address && !isInitialized)}>
               {loading ? 'Fetching…' : 'Fetch Balances'}
             </button>
             <div className="flex items-center gap-2">
               <button
                 className="btn btn-secondary"
-                onClick={() => typeof window !== 'undefined' && (initialize as any)(window.ethereum)}
+                onClick={() => typeof window !== 'undefined' && (initialize as any)((window as any).ethereum)}
                 disabled={isInitializing || isInitialized}
               >
                 {isInitialized ? 'Connected to Nexus' : (isInitializing ? 'Connecting…' : 'Connect Wallet (for Execution)')}

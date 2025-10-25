@@ -85,16 +85,19 @@ export function useAvailNexus() {
   /**
    * Get unified balances from Avail Nexus SDK
    */
-  const getUnifiedBalances = useCallback(async (walletAddress: string): Promise<Balance[]> => {
+  const getUnifiedBalances = useCallback(async (walletAddress?: string): Promise<Balance[]> => {
     // Try SDK unified balances if initialized
     try {
       if (availNexusClient.isInitialized()) {
         const viaSdk = await availNexusClient.fetchUnifiedBalancesViaSDK();
         if (viaSdk && viaSdk.length > 0) return viaSdk;
       }
-    } catch {}
+    } catch (e) {
+      console.warn('SDK unified balance fetch failed:', e);
+    }
 
     // Otherwise, use our server API which derives balances from HyperSync and falls back to RPC
+    if (!walletAddress) return [];
     try {
       const resp = await fetch(`/api/avail/unified-balance/${walletAddress}`);
       if (!resp.ok) return [];

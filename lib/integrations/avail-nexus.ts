@@ -8,6 +8,7 @@
 // We'll dynamically import the SDK inside initialize() on the client only
 import type { OnAllowanceHookData, OnIntentHookData } from '@avail-project/nexus-core';
 import type { Balance } from '@/types';
+import { getChainByChainId } from '@/config/chains';
 
 export class AvailNexusClient {
   private sdk: any;

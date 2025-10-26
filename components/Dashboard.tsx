@@ -26,6 +26,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ walletAddress, onChangeWallet }: DashboardProps) {
+
   // Fetch wallet data
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['wallet', walletAddress],

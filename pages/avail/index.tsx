@@ -14,6 +14,7 @@ export default function AvailPage() {
   const [balances, setBalances] = useState<Balance[] | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<boolean>(false);
 
   // Bridge & Execute form
   const [token, setToken] = useState<string>('ETH');
@@ -259,7 +260,7 @@ export default function AvailPage() {
         setExecResult(result);
       } else {
         // If an error was returned but we saw success via events, keep the success
-        setExecResult((prev) => {
+        setExecResult((prev: any) => {
           if (prev?.success) return prev;
           // Heuristic: viem “Failed to fetch” from deposit – treat as submitted but unknown
           const errMsg = (result?.error || '').toString();
@@ -283,6 +284,60 @@ export default function AvailPage() {
     }
   }
 
+  // Helper: create placeholder zero balances per chain for a small token set (ETH, USDC)
+  const placeholderBalances: Balance[] = useMemo(() => {
+    const tokens = [
+      { symbol: 'ETH', name: 'Ether', decimals: 18 },
+      { symbol: 'USDC', name: 'USD Coin', decimals: 6 },
+    ];
+    const items: Balance[] = [] as any;
+    for (const c of supportedChains) {
+      for (const t of tokens) {
+        items.push({
+          token: {
+            address: '0x0000000000000000000000000000000000000000',
+            symbol: t.symbol,
+            name: t.name,
+            decimals: t.decimals,
+            chainId: String(c.id) as any,
+          },
+          balance: '0',
+          balanceFormatted: 0,
+          usdValue: 0,
+          chainId: String(c.id) as any,
+          lastUpdated: Date.now(),
+        });
+      }
+    }
+    return items;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useTestnet]);
+
+  async function connectWallet() {
+    try {
+      setError(null);
+      setConnecting(true);
+      if (typeof window === 'undefined') throw new Error('Window not available');
+      const eth = (window as any).ethereum;
+      if (!eth) throw new Error('MetaMask not found');
+      const accounts: string[] = await eth.request({ method: 'eth_requestAccounts' });
+      if (!accounts || accounts.length === 0) throw new Error('No account returned');
+      const acct = accounts[0];
+      setAddress(acct);
+      if (!isInitialized) {
+        await initialize(eth);
+      }
+      setLoading(true);
+      const res = await getUnifiedBalances(acct);
+      setBalances(res || []);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to connect wallet');
+    } finally {
+      setLoading(false);
+      setConnecting(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -292,16 +347,29 @@ export default function AvailPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               🌉 Avail Nexus Bridge
             </h1>
-            <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-              Powered by Avail Nexus
-            </Badge>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={connectWallet}
+                disabled={connecting || isInitializing}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  address
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 cursor-default'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white'
+                }`}
+              >
+                {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : (connecting || isInitializing) ? 'Connecting…' : 'Connect Wallet'}
+              </button>
+              <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                Powered by Avail Nexus
+              </Badge>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-6 space-y-6">
 
-      {/* Address input and fetch */}
+      {/* Unified balances */}
       <Card className="bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-blue-950/20 dark:via-slate-950 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-900/40">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -309,7 +377,7 @@ export default function AvailPage() {
               <CardTitle className="flex items-center gap-2">
                 <span className="text-xl">💰</span> Unified Balances
               </CardTitle>
-              <CardDescription>Fetch balances by address (no wallet required)</CardDescription>
+              <CardDescription>{address ? 'Balances for connected wallet' : 'Connect wallet to view balances'}</CardDescription>
             </div>
             <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
               Real-time
@@ -317,26 +385,7 @@ export default function AvailPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <input
-              placeholder="0xYourAddress"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full border rounded px-3 py-2 bg-background"
-            />
-            <button onClick={handleFetch} className="btn btn-primary" disabled={loading || (!address && !isInitialized)}>
-              {loading ? 'Fetching…' : 'Fetch Balances'}
-            </button>
-            <div className="flex items-center gap-2">
-              <button
-                className="btn btn-secondary"
-                onClick={() => typeof window !== 'undefined' && (initialize as any)((window as any).ethereum)}
-                disabled={isInitializing || isInitialized}
-              >
-                {isInitialized ? 'Connected to Nexus' : (isInitializing ? 'Connecting…' : 'Connect Wallet (for Execution)')}
-              </button>
-            </div>
-          </div>
+          {(error && !loading) && <div className="text-sm text-red-600 mb-2">{error}</div>}
 
           {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
 
@@ -348,20 +397,39 @@ export default function AvailPage() {
             </div>
           )}
 
-          {balances && balances.length > 0 && (
+          {(balances && balances.length > 0 ? balances : placeholderBalances) && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-              {balances.map((b, idx) => (
-                <Card key={`${b.chainId}-${b.token.address}-${idx}`}>
-                  <CardHeader className="flex items-center justify-between">
-                    <CardTitle>{b.token.symbol}</CardTitle>
-                    <Badge variant="outline">{b.chainId}</Badge>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-semibold">{b.balanceFormatted.toLocaleString(undefined, { maximumFractionDigits: 6 })}</div>
-                    <div className="text-sm text-muted-foreground mt-1">{b.token.name}</div>
-                    <div className="text-sm mt-2">USD Value: ${b.usdValue?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || '0.00'}</div>
-                  </CardContent>
-                </Card>
+              {(balances && balances.length > 0 ? balances : placeholderBalances).map((b, idx) => (
+                <div
+                  key={`${b.chainId}-${b.token.address}-${idx}`}
+                  className="relative overflow-hidden rounded-xl border-2 border-gray-200 dark:border-slate-700 bg-gradient-to-br from-white to-gray-50 dark:from-slate-900 dark:to-slate-950 p-5 hover:shadow-xl transition-all"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{b.chainId}</div>
+                      <div className="text-lg font-bold">{b.token.symbol}</div>
+                    </div>
+                    <div className="px-2 py-1 text-xs rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                      Token
+                    </div>
+                  </div>
+
+                  <div className="text-3xl font-extrabold tracking-tight">
+                    {b.balanceFormatted.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">{b.token.name}</div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div className="p-3 rounded bg-gray-100 dark:bg-slate-800">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">USD Value</div>
+                      <div className="font-semibold">${b.usdValue?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || '0.00'}</div>
+                    </div>
+                    <div className="p-3 rounded bg-gray-100 dark:bg-slate-800">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Decimals</div>
+                      <div className="font-semibold">{b.token.decimals}</div>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           )}

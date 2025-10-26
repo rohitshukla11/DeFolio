@@ -30,24 +30,40 @@ export default function PnLChart({
   pnlByChain,
 }: PnLChartProps) {
   // Prepare data based on grouping
-  const chartData =
+  const baseData =
     groupBy === 'token'
       ? pnlByToken
           .filter((pnl) => pnl.currentValue > 0)
-          .map((pnl) => ({
-            name: pnl.token.symbol,
-            value: pnl.currentValue,
-            pnl: pnl.totalPnL,
-          }))
-          .sort((a, b) => b.value - a.value)
-          .slice(0, 8) // Top 8 holdings
+          .map((pnl) => ({ name: pnl.token.symbol, value: pnl.currentValue, pnl: pnl.totalPnL }))
       : pnlByChain
-      ? Object.entries(pnlByChain).map(([chain, value]) => ({
-          name: chain,
-          value: Math.abs(value),
-          pnl: value,
-        }))
+      ? Object.entries(pnlByChain).map(([chain, value]) => ({ name: chain, value: Math.abs(value), pnl: value }))
       : [];
+
+  // 1) Sort by value desc
+  const sorted = [...baseData].sort((a, b) => b.value - a.value);
+  // 2) Keep top N slices and aggregate the rest into "Other" to avoid thin slices
+  const MAX_SLICES = 5;
+  let displayData = sorted.slice(0, MAX_SLICES);
+  if (sorted.length > MAX_SLICES) {
+    const othersValue = sorted.slice(MAX_SLICES).reduce((s, d) => s + d.value, 0);
+    if (othersValue > 0) displayData = [...displayData, { name: 'other', value: othersValue, pnl: 0 }];
+  }
+
+  // Custom label - place outside and hide when < threshold to reduce clutter
+  const renderLabel = (props: any) => {
+    const { cx, cy, midAngle, outerRadius, percent, name } = props;
+    const p = percent * 100;
+    if (p < 4) return null; // hide tiny slices
+    const RADIAN = Math.PI / 180;
+    const radius = outerRadius + 18; // place label outside the arc
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    return (
+      <text x={x} y={y} fill="#374151" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs">
+        {`${name} ${p.toFixed(0)}%`}
+      </text>
+    );
+  };
 
   const title = groupBy === 'token' ? 'Portfolio Allocation' : 'PnL by Chain';
 
@@ -73,7 +89,7 @@ export default function PnLChart({
     return null;
   };
 
-  if (chartData.length === 0) {
+  if (displayData.length === 0) {
     return (
       <div className="card bg-gradient-to-br from-gray-50 to-slate-50 dark:from-slate-900 dark:to-slate-950 border border-gray-200 dark:border-slate-800">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -92,25 +108,25 @@ export default function PnLChart({
         📊 {title}
       </h3>
       <ResponsiveContainer width="100%" height={320}>
-        <PieChart>
+        <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
           <Pie
-            data={chartData}
+            data={displayData}
             cx="50%"
-            cy="50%"
+            cy="55%"
             labelLine={false}
-            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-            outerRadius={100}
-            innerRadius={50}
+            label={renderLabel}
+            outerRadius={95}
+            innerRadius={55}
             fill="#8884d8"
             dataKey="value"
             paddingAngle={2}
           >
-            {chartData.map((entry, index) => (
+            {displayData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ paddingTop: 12 }} />
+          <Legend wrapperStyle={{ paddingTop: 12 }} verticalAlign="bottom" align="center" />
         </PieChart>
       </ResponsiveContainer>
     </div>

@@ -25,7 +25,7 @@ export class AvailNexusClient {
    * Initialize Nexus SDK with wallet provider
    * @param provider Ethereum provider from wallet (e.g., MetaMask, WalletConnect)
    */
-  async initialize(provider: any): Promise<void> {
+  async initialize(provider: any, network?: 'mainnet' | 'testnet'): Promise<void> {
     if (this.initialized) {
       console.log('Nexus SDK already initialized');
       return;
@@ -38,7 +38,7 @@ export class AvailNexusClient {
       const mod = await import('@avail-project/nexus-core');
       const NexusSDK = (mod as any).NexusSDK || (mod as any).default || mod;
       this.sdk = new NexusSDK({
-        network: process.env.NODE_ENV === 'production' ? 'mainnet' : 'testnet',
+        network: network || (process.env.NODE_ENV === 'production' ? 'mainnet' : 'testnet'),
         debug: process.env.NODE_ENV === 'development',
       });
       await this.sdk.initialize(provider);

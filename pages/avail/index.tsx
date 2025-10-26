@@ -278,8 +278,8 @@ export default function AvailPage() {
       console.error('❌ Bridge execution error:', e);
       setExecError(e?.message || 'Execution failed. Please check console for details.');
     } finally {
-      // Cleanup listeners if any
-      try { listeners?.forEach((u) => typeof u === 'function' && u()); } catch {}
+      // Cleanup listeners if any (guard for server builds)
+      try { (globalThis as any)?.listeners?.forEach?.((u: any) => typeof u === 'function' && u()); } catch {}
       setExecLoading(false);
     }
   }
@@ -325,7 +325,7 @@ export default function AvailPage() {
       const acct = accounts[0];
       setAddress(acct);
       if (!isInitialized) {
-        await initialize(eth);
+        await initialize(eth, useTestnet ? 'testnet' : 'mainnet');
       }
       setLoading(true);
       const res = await getUnifiedBalances(acct);

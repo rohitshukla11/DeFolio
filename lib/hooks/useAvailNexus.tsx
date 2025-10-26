@@ -32,12 +32,12 @@ export function useAvailNexus() {
   /**
    * Initialize Nexus SDK with wallet provider
    */
-  const initialize = useCallback(async (provider: any) => {
+  const initialize = useCallback(async (provider: any, network?: 'mainnet' | 'testnet') => {
     if (isInitializing || isInitialized) return;
 
     setIsInitializing(true);
     try {
-      await availNexusClient.initialize(provider);
+      await availNexusClient.initialize(provider, network);
       // Initialize unified balance client as well
       try {
         await nexusUnifiedClient.initialize(provider);

@@ -1,6 +1,6 @@
-# 🏆 DeFolio - Award-Winning Multi-Chain Portfolio Dashboard
+# 🏆 DeFolio - Multi-Chain Portfolio Dashboard
 
-## 🎯 Built for ETHOnline 2025 - Best Live Web3 Dashboard ($500)
+## 🎯 Built for ETHOnline 2025
 
 A **real-time Web3 dashboard** powered by **Envio HyperSync** that brings blockchain data to life through beautiful visualizations, live transaction streams, and intelligent cross-chain analytics.
 
@@ -10,7 +10,7 @@ A **real-time Web3 dashboard** powered by **Envio HyperSync** that brings blockc
 ![Tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8)
 ![Envio](https://img.shields.io/badge/Powered_by-Envio_HyperSync-blueviolet)
 
-## 🌟 Award-Winning Features
+## 🌟 Features
 
 ### 🔥 Real-Time Data Visualization
 - **Live Transaction Timeline** with animated updates and "NEW" badges

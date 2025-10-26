@@ -26,7 +26,6 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ walletAddress, onChangeWallet }: DashboardProps) {
-  // Removed unified balances section per request
   // Fetch wallet data
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['wallet', walletAddress],
@@ -55,7 +54,11 @@ export default function Dashboard({ walletAddress, onChangeWallet }: DashboardPr
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Navbar */}
+      <Navbar walletAddress={walletAddress} onChangeWallet={onChangeWallet} />
+
+      <div className="container mx-auto px-4 py-6 space-y-6">
       {/* Portfolio Summary - Enhanced */}
       <PortfolioSummary portfolio={data.portfolio} />
 
@@ -110,6 +113,11 @@ export default function Dashboard({ walletAddress, onChangeWallet }: DashboardPr
           </div>
         </div>
       )}
+
+      </div>
+      
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }

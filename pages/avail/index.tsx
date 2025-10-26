@@ -284,17 +284,37 @@ export default function AvailPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Avail Interaction</h1>
-        <Badge variant="secondary">Powered by Avail Nexus</Badge>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              🌉 Avail Nexus Bridge
+            </h1>
+            <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+              Powered by Avail Nexus
+            </Badge>
+          </div>
+        </div>
       </div>
 
+      <div className="container mx-auto px-4 py-6 space-y-6">
+
       {/* Address input and fetch */}
-      <Card>
+      <Card className="bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-blue-950/20 dark:via-slate-950 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-900/40">
         <CardHeader>
-          <CardTitle>Unified Balances</CardTitle>
-          <CardDescription>Fetch balances by address (no wallet required)</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-xl">💰</span> Unified Balances
+              </CardTitle>
+              <CardDescription>Fetch balances by address (no wallet required)</CardDescription>
+            </div>
+            <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+              Real-time
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -349,11 +369,13 @@ export default function AvailPage() {
       </Card>
 
       {/* Bridge & Execute */}
-      <Card>
+      <Card className="bg-gradient-to-br from-purple-50 via-white to-pink-50 dark:from-purple-950/20 dark:via-slate-950 dark:to-pink-950/20 border border-purple-200 dark:border-purple-900/40 shadow-lg">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Bridge & Execute</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-xl">🌉</span> Bridge & Execute
+              </CardTitle>
               <CardDescription>
                 Route funds from source to destination chain and execute in one flow (requires wallet).
               </CardDescription>
@@ -361,7 +383,7 @@ export default function AvailPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setUseTestnet(!useTestnet)}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all hover:scale-105 ${
                   useTestnet 
                     ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' 
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
@@ -369,7 +391,9 @@ export default function AvailPage() {
               >
                 {useTestnet ? '🧪 Testnet Mode' : '🌐 Mainnet Mode'}
               </button>
-              <Badge variant="secondary">Avail Nexus</Badge>
+              <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                Avail Nexus
+              </Badge>
             </div>
           </div>
         </CardHeader>
@@ -502,9 +526,11 @@ export default function AvailPage() {
           )}
 
           {/* Info Box */}
-          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
-            <div className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">ℹ️ About Bridge & Execute</div>
-            <div className="text-xs text-blue-700 dark:text-blue-300 space-y-2">
+          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="text-sm font-bold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
+              <span className="text-lg">ℹ️</span> About Bridge & Execute
+            </div>
+            <div className="text-xs text-blue-800 dark:text-blue-200 space-y-2">
               <p>
                 Avail Nexus Bridge & Execute allows you to seamlessly transfer assets across different blockchains in a single transaction.
               </p>
@@ -518,6 +544,7 @@ export default function AvailPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
